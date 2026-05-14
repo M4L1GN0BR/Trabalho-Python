@@ -3,7 +3,6 @@ import os
 import ssl
 import socket
 import sqlite3
-import subprocess
 from datetime import datetime
 from urllib.parse import urlparse
 from io import BytesIO
@@ -26,7 +25,6 @@ load_dotenv()
 
 API_KEY = os.getenv("GEMINI_API_KEY")
 client = genai.Client(api_key=API_KEY) if API_KEY else None
-
 DB_PATH = "data/history.db"
 
 
@@ -59,14 +57,8 @@ def save_url_history(url, final_url, score, classification, high_count, medium_c
 
     cursor.execute("""
         INSERT INTO url_history (
-            created_at,
-            url,
-            final_url,
-            score,
-            classification,
-            high_count,
-            medium_count,
-            low_count
+            created_at, url, final_url, score, classification,
+            high_count, medium_count, low_count
         )
         VALUES (?, ?, ?, ?, ?, ?, ?, ?)
     """, (
@@ -86,10 +78,7 @@ def save_url_history(url, final_url, score, classification, high_count, medium_c
 
 def load_url_history():
     conn = sqlite3.connect(DB_PATH)
-    df = pd.read_sql_query(
-        "SELECT * FROM url_history ORDER BY id DESC",
-        conn
-    )
+    df = pd.read_sql_query("SELECT * FROM url_history ORDER BY id DESC", conn)
     conn.close()
     return df
 
@@ -164,9 +153,7 @@ def extract_section(text, labels):
     if not text:
         return None
 
-    lines = text.splitlines()
-
-    for line in lines:
+    for line in text.splitlines():
         normalized = clean_text(line).strip().upper()
 
         for label in labels:
@@ -191,17 +178,23 @@ def default_correction(text):
     if "https" in text:
         return "Habilitar HTTPS com certificado TLS válido."
 
-    if "os.system" in text or "command" in text or "injection" in text:
-        return "Evite usar os.system com entrada controlada pelo usuário. Prefira subprocess.run com lista de argumentos, sem shell=True."
+    if "os.system" in text:
+        return "Evitar uso de os.system com entrada do usuário. Prefira subprocess.run com lista de argumentos."
 
-    return "Revisar a configuração de segurança correspondente e aplicar hardening."
+    if "subprocess" in text:
+        return "Evitar subprocess com shell=True e validar entradas externas."
+
+    if "hardcoded" in text or "password" in text or "secret" in text:
+        return "Remover segredo do código e usar variável de ambiente ou cofre de segredos."
+
+    return "Revisar configuração e aplicar hardening."
 
 
 def local_ai_fallback(title, description):
     return {
-        "explicacao": f"O item analisado ({title}) indica uma possível fragilidade de configuração ou implementação.",
+        "explicacao": f"O item analisado ({title}) pode representar uma fragilidade de segurança.",
         "risco": description,
-        "correcao": default_correction(f"{title} {description}"),
+        "correcao": default_correction(f"{title} {description}")
     }
 
 
@@ -212,7 +205,7 @@ def ask_ai(title, description):
 
     try:
         prompt = f"""
-Você é um especialista em Application Security Posture Management (ASPM).
+Você é um especialista em ASPM, AppSec e segurança de aplicações.
 
 Analise o item abaixo:
 
@@ -250,7 +243,18 @@ CORRECAO: ...
         return local_ai_fallback(title, description)
 
 
-def classify_priority(severity):
+def load_json(file_path, default=None):
+    if default is None:
+        default = {}
+
+    if not os.path.exists(file_path):
+        return default
+
+    with open(file_path, "r", encoding="utf-8-sig") as f:
+        return json.load(f)
+
+
+def classify_semgrep_priority(severity):
     if severity == "ERROR":
         return "Alta"
     if severity == "WARNING":
@@ -258,12 +262,17 @@ def classify_priority(severity):
     return "Baixa"
 
 
-def load_results(file_path):
-    with open(file_path, "r", encoding="utf-8-sig") as f:
-        return json.load(f)
+def classify_bandit_priority(severity):
+    severity = str(severity).upper()
+
+    if severity == "HIGH":
+        return "Alta"
+    if severity == "MEDIUM":
+        return "Média"
+    return "Baixa"
 
 
-def get_vulnerabilities(data):
+def get_semgrep_vulnerabilities(data):
     results = data.get("results", [])
     vulns = []
 
@@ -271,7 +280,7 @@ def get_vulnerabilities(data):
         severity = item.get("extra", {}).get("severity")
         check_id = item.get("check_id")
         message = clean_text(item.get("extra", {}).get("message"))
-        priority = classify_priority(severity)
+        priority = classify_semgrep_priority(severity)
 
         ai_data = ask_ai(check_id, message)
 
@@ -282,6 +291,35 @@ def get_vulnerabilities(data):
             "Severidade": severity,
             "Prioridade": priority,
             "Descrição": message,
+            "Explicação IA": ai_data["explicacao"],
+            "Risco IA": ai_data["risco"],
+            "Correção IA": ai_data["correcao"],
+        })
+
+    return vulns
+
+
+def get_bandit_vulnerabilities(data):
+    results = data.get("results", [])
+    vulns = []
+
+    for item in results:
+        test_name = item.get("test_name")
+        severity = item.get("issue_severity")
+        confidence = item.get("issue_confidence")
+        text = clean_text(item.get("issue_text"))
+        priority = classify_bandit_priority(severity)
+
+        ai_data = ask_ai(test_name, text)
+
+        vulns.append({
+            "Teste": test_name,
+            "Arquivo": item.get("filename"),
+            "Linha": item.get("line_number"),
+            "Severidade": severity,
+            "Confiança": confidence,
+            "Prioridade": priority,
+            "Descrição": text,
             "Explicação IA": ai_data["explicacao"],
             "Risco IA": ai_data["risco"],
             "Correção IA": ai_data["correcao"],
@@ -480,128 +518,17 @@ def analyze_url(url):
         }
 
 
-def zap_risk_to_priority(risk):
-    risk = str(risk).lower()
-
-    if risk in ["high"]:
-        return "Alta"
-
-    if risk in ["medium"]:
-        return "Média"
-
-    return "Baixa"
-
-
-def parse_zap_json(report_path):
-    if not os.path.exists(report_path):
-        return []
-
-    with open(report_path, "r", encoding="utf-8-sig") as f:
-        data = json.load(f)
-
-    alerts = []
-
-    sites = data.get("site", [])
-
-    for site in sites:
-        for alert in site.get("alerts", []):
-            risk = alert.get("riskdesc", alert.get("risk", "Info"))
-            priority = zap_risk_to_priority(str(risk).split(" ")[0])
-
-            alerts.append({
-                "Fonte": "OWASP ZAP",
-                "Nome": alert.get("name"),
-                "Risco": risk,
-                "Prioridade": priority,
-                "Confiança": alert.get("confidence", "Não informado"),
-                "Descrição": clean_text(alert.get("desc", "")),
-                "Solução": clean_text(alert.get("solution", "")),
-                "Referência": clean_text(alert.get("reference", "")),
-            })
-
-    return alerts
-
-
-def run_zap_baseline(target_url):
-    os.makedirs("data/zap", exist_ok=True)
-
-    report_file = "zap_report.json"
-    local_report_path = os.path.abspath(os.path.join("data", "zap", report_file))
-
-    if os.path.exists(local_report_path):
-        os.remove(local_report_path)
-
-    target_url = normalize_url(target_url)
-
-    command = [
-        "docker",
-        "run",
-        "--rm",
-        "-v",
-        f"{os.path.abspath('data/zap')}:/zap/wrk:rw",
-        "ghcr.io/zaproxy/zaproxy:stable",
-        "zap-baseline.py",
-        "-t",
-        target_url,
-        "-J",
-        report_file,
-    ]
-
-    try:
-        result = subprocess.run(
-            command,
-            capture_output=True,
-            text=True,
-            timeout=600,
-            encoding="utf-8",
-            errors="replace",
-        )
-
-        alerts = parse_zap_json(local_report_path)
-
-        return {
-            "success": os.path.exists(local_report_path),
-            "target": target_url,
-            "report_path": local_report_path,
-            "stdout": result.stdout,
-            "stderr": result.stderr,
-            "returncode": result.returncode,
-            "alerts": alerts,
-        }
-
-    except subprocess.TimeoutExpired:
-        return {
-            "success": False,
-            "target": target_url,
-            "report_path": local_report_path,
-            "stdout": "",
-            "stderr": "Tempo limite atingido ao executar OWASP ZAP.",
-            "returncode": -1,
-            "alerts": [],
-        }
-
-    except Exception as e:
-        return {
-            "success": False,
-            "target": target_url,
-            "report_path": local_report_path,
-            "stdout": "",
-            "stderr": str(e),
-            "returncode": -1,
-            "alerts": [],
-        }
-
-
 init_db()
 
 st.set_page_config(page_title="ASPM Dashboard", layout="wide")
 
 st.title("ASPM Dashboard")
+st.caption("Plataforma ASPM com Semgrep, Bandit, análise passiva de URL, IA e histórico.")
 
 tab1, tab2, tab3, tab4 = st.tabs([
-    "Análise SAST - Semgrep",
-    "Análise Passiva de URL",
-    "OWASP ZAP Baseline",
+    "Semgrep",
+    "Bandit",
+    "URL Analysis",
     "Histórico"
 ])
 
@@ -611,37 +538,40 @@ with tab1:
 
     uploaded_file = st.file_uploader(
         "Enviar arquivo JSON do Semgrep",
-        type=["json"]
+        type=["json"],
+        key="upload_semgrep"
     )
 
     if uploaded_file is not None:
-        data = json.load(uploaded_file)
-        st.success("Arquivo JSON carregado com sucesso.")
+        semgrep_data = json.load(uploaded_file)
+        st.success("Arquivo JSON do Semgrep carregado com sucesso.")
     else:
         st.info("Nenhum arquivo enviado. Usando data/results.json como padrão.")
-        data = load_results("data/results.json")
+        semgrep_data = load_json("data/results.json", {"results": []})
 
-    vulnerabilities = get_vulnerabilities(data)
+    semgrep_vulns = get_semgrep_vulnerabilities(semgrep_data)
 
-    if vulnerabilities:
-        df = pd.DataFrame(vulnerabilities)
+    if semgrep_vulns:
+        df = pd.DataFrame(semgrep_vulns)
 
-        st.subheader("Resumo Geral")
-        st.write(f"Total de vulnerabilidades: {len(df)}")
+        high_count = df[df["Prioridade"] == "Alta"].shape[0]
+        medium_count = df[df["Prioridade"] == "Média"].shape[0]
+        low_count = df[df["Prioridade"] == "Baixa"].shape[0]
+
+        col1, col2, col3, col4 = st.columns(4)
+        col1.metric("Total", len(df))
+        col2.metric("Alta", high_count)
+        col3.metric("Média", medium_count)
+        col4.metric("Baixa", low_count)
 
         tabela = df[["ID", "Arquivo", "Linha", "Severidade", "Prioridade", "Descrição"]]
         st.dataframe(tabela, use_container_width=True)
 
-        csv_sast = tabela.to_csv(index=False).encode("utf-8-sig")
-        st.download_button("Exportar CSV - Semgrep", csv_sast, "relatorio_semgrep.csv", "text/csv")
+        csv_data = tabela.to_csv(index=False).encode("utf-8-sig")
+        st.download_button("Exportar CSV", csv_data, "semgrep.csv", "text/csv")
 
-        pdf_sast = generate_pdf_report(
-            "Relatório ASPM - Semgrep",
-            f"Total de vulnerabilidades: {len(df)}",
-            tabela,
-        )
-
-        st.download_button("Exportar PDF - Semgrep", pdf_sast, "relatorio_semgrep.pdf", "application/pdf")
+        pdf = generate_pdf_report("Relatório Semgrep", f"Total: {len(df)}", tabela)
+        st.download_button("Exportar PDF", pdf, "semgrep.pdf", "application/pdf")
 
         st.subheader("Detalhamento com IA")
 
@@ -655,25 +585,97 @@ with tab1:
                 st.write(f"Risco IA: {row['Risco IA']}")
                 st.write(f"Correção IA: {row['Correção IA']}")
     else:
-        st.warning("Nenhuma vulnerabilidade encontrada.")
+        st.info("Nenhuma vulnerabilidade encontrada pelo Semgrep.")
 
 
 with tab2:
+    st.subheader("Análise Python - Bandit")
+
+    st.info(
+        "O Bandit é uma ferramenta especializada em segurança para código Python. "
+        "Ele ajuda a identificar padrões inseguros como uso perigoso de subprocess, exec, eval, pickle, "
+        "senhas hardcoded e outros riscos comuns em aplicações Python."
+    )
+
+    uploaded_bandit = st.file_uploader(
+        "Enviar arquivo JSON do Bandit",
+        type=["json"],
+        key="upload_bandit"
+    )
+
+    if uploaded_bandit is not None:
+        bandit_data = json.load(uploaded_bandit)
+        st.success("Arquivo JSON do Bandit carregado com sucesso.")
+    else:
+        st.info("Nenhum arquivo enviado. Usando data/bandit.json como padrão.")
+        bandit_data = load_json("data/bandit.json", {"results": []})
+
+    bandit_vulns = get_bandit_vulnerabilities(bandit_data)
+
+    if bandit_vulns:
+        df = pd.DataFrame(bandit_vulns)
+
+        high_count = df[df["Prioridade"] == "Alta"].shape[0]
+        medium_count = df[df["Prioridade"] == "Média"].shape[0]
+        low_count = df[df["Prioridade"] == "Baixa"].shape[0]
+
+        col1, col2, col3, col4 = st.columns(4)
+        col1.metric("Total", len(df))
+        col2.metric("Alta", high_count)
+        col3.metric("Média", medium_count)
+        col4.metric("Baixa", low_count)
+
+        tabela = df[["Teste", "Arquivo", "Linha", "Severidade", "Confiança", "Prioridade", "Descrição"]]
+        st.dataframe(tabela, use_container_width=True)
+
+        csv_data = tabela.to_csv(index=False).encode("utf-8-sig")
+        st.download_button("Exportar CSV", csv_data, "bandit.csv", "text/csv")
+
+        pdf = generate_pdf_report("Relatório Bandit", f"Total: {len(df)}", tabela)
+        st.download_button("Exportar PDF", pdf, "bandit.pdf", "application/pdf")
+
+        st.subheader("Detalhamento com IA")
+
+        for _, row in df.iterrows():
+            with st.expander(f"{row['Teste']} | {row['Arquivo']} | Linha {row['Linha']}"):
+                st.write(f"Severidade: {row['Severidade']}")
+                st.write(f"Confiança: {row['Confiança']}")
+                st.write(f"Prioridade: {row['Prioridade']}")
+                st.write(f"Descrição: {row['Descrição']}")
+                st.write("---")
+                st.write(f"Explicação IA: {row['Explicação IA']}")
+                st.write(f"Risco IA: {row['Risco IA']}")
+                st.write(f"Correção IA: {row['Correção IA']}")
+    else:
+        st.success("Nenhum achado encontrado pelo Bandit.")
+        st.write(
+            "Isso significa que, no arquivo JSON analisado, o Bandit não encontrou padrões inseguros relevantes "
+            "para código Python."
+        )
+
+
+with tab3:
     st.subheader("Análise Passiva de URL")
 
     st.info(
-        "Esta análise verifica configurações expostas pela aplicação. "
-        "Use apenas em sites próprios, autorizados ou ambientes de laboratório."
+        "Esta análise verifica configurações expostas pela aplicação, como HTTPS, TLS, headers de segurança, "
+        "exposição de servidor e portas HTTP/HTTPS. Use apenas em sites próprios, autorizados ou ambientes de laboratório."
     )
 
-    url = st.text_input("Digite a URL", placeholder="https://exemplo.com", key="url_passiva")
+    url = st.text_input("Digite a URL", placeholder="https://exemplo.com")
 
     usar_ia_url = st.checkbox("Usar IA para explicar cada achado da URL", value=True)
-    limite_ia_url = st.number_input("Limite de achados explicados pela IA", min_value=1, max_value=20, value=5)
+
+    limite_ia_url = st.number_input(
+        "Limite de achados explicados pela IA",
+        min_value=1,
+        max_value=20,
+        value=5
+    )
 
     if st.button("Analisar URL"):
         if not url.strip():
-            st.warning("Digite uma URL para analisar.")
+            st.warning("Digite uma URL.")
         else:
             result = analyze_url(url)
 
@@ -707,15 +709,14 @@ with tab2:
             st.dataframe(url_df, use_container_width=True)
 
             csv_url = url_df.to_csv(index=False).encode("utf-8-sig")
-            st.download_button("Exportar CSV - URL", csv_url, "relatorio_url.csv", "text/csv")
+            st.download_button("Exportar CSV", csv_url, "url_analysis.csv", "text/csv")
 
             pdf_url = generate_pdf_report(
-                "Relatório ASPM - URL",
+                "Relatório URL Analysis",
                 f"URL analisada: {result['url_final']} | Score: {result['score']} | Classificação: {result['classificacao']}",
-                url_df,
+                url_df
             )
-
-            st.download_button("Exportar PDF - URL", pdf_url, "relatorio_url.pdf", "application/pdf")
+            st.download_button("Exportar PDF", pdf_url, "url_analysis.pdf", "application/pdf")
 
             st.subheader("Detalhamento com IA")
 
@@ -736,103 +737,18 @@ with tab2:
                     st.write(f"Correção IA: {ai_result['correcao']}")
 
 
-with tab3:
-    st.subheader("OWASP ZAP Baseline")
-
-    st.info(
-        "O ZAP Baseline roda via Docker e usa spider com análise passiva. "
-        "Use apenas em aplicações próprias, autorizadas ou ambientes de laboratório."
-    )
-
-    zap_url = st.text_input("URL para ZAP Baseline", placeholder="https://juice-shop.herokuapp.com", key="url_zap")
-
-    if st.button("Rodar ZAP Baseline"):
-        if not zap_url.strip():
-            st.warning("Digite uma URL para executar o ZAP.")
-        else:
-            with st.spinner("Executando OWASP ZAP Baseline via Docker. Isso pode levar alguns minutos..."):
-                zap_result = run_zap_baseline(zap_url)
-
-            st.write(f"Alvo: {zap_result['target']}")
-            st.write(f"Return code: {zap_result['returncode']}")
-            st.write(f"Relatório: {zap_result['report_path']}")
-
-            if zap_result["stderr"]:
-                with st.expander("Logs de erro/aviso do ZAP"):
-                    st.code(zap_result["stderr"])
-
-            if zap_result["stdout"]:
-                with st.expander("Logs de saída do ZAP"):
-                    st.code(zap_result["stdout"])
-
-            alerts = zap_result["alerts"]
-
-            if alerts:
-                zap_df = pd.DataFrame(alerts)
-
-                high_count = zap_df[zap_df["Prioridade"] == "Alta"].shape[0]
-                medium_count = zap_df[zap_df["Prioridade"] == "Média"].shape[0]
-                low_count = zap_df[zap_df["Prioridade"] == "Baixa"].shape[0]
-
-                col1, col2, col3, col4 = st.columns(4)
-                col1.metric("Total", len(zap_df))
-                col2.metric("Alta", high_count)
-                col3.metric("Média", medium_count)
-                col4.metric("Baixa", low_count)
-
-                st.dataframe(zap_df, use_container_width=True)
-
-                csv_zap = zap_df.to_csv(index=False).encode("utf-8-sig")
-                st.download_button("Exportar CSV - ZAP", csv_zap, "relatorio_zap.csv", "text/csv")
-
-                pdf_zap = generate_pdf_report(
-                    "Relatório ASPM - OWASP ZAP Baseline",
-                    f"Alvo analisado: {zap_result['target']} | Total de alertas: {len(zap_df)}",
-                    zap_df,
-                )
-
-                st.download_button("Exportar PDF - ZAP", pdf_zap, "relatorio_zap.pdf", "application/pdf")
-
-                st.subheader("Detalhamento com IA")
-
-                limite_ia_zap = st.number_input("Limite de alertas explicados pela IA", min_value=1, max_value=20, value=5)
-
-                for index, row in zap_df.iterrows():
-                    if index < limite_ia_zap:
-                        ai_result = ask_ai(row["Nome"], row["Descrição"])
-                    else:
-                        ai_result = local_ai_fallback(row["Nome"], row["Descrição"])
-
-                    with st.expander(f"{row['Nome']} | {row['Risco']}"):
-                        st.write(f"Prioridade: {row['Prioridade']}")
-                        st.write(f"Confiança: {row['Confiança']}")
-                        st.write(f"Descrição: {row['Descrição']}")
-                        st.write(f"Solução ZAP: {row['Solução']}")
-                        st.write("---")
-                        st.write(f"Explicação IA: {ai_result['explicacao']}")
-                        st.write(f"Risco IA: {ai_result['risco']}")
-                        st.write(f"Correção IA: {ai_result['correcao']}")
-            else:
-                st.warning("Nenhum alerta encontrado ou relatório ZAP não foi gerado.")
-
-
 with tab4:
-    st.subheader("Histórico de Análises de URL")
+    st.subheader("Histórico de análises de URL")
 
     history_df = load_url_history()
 
     if history_df.empty:
-        st.info("Nenhuma análise registrada ainda.")
+        st.info("Nenhuma análise registrada.")
     else:
         st.dataframe(history_df, use_container_width=True)
 
         csv_history = history_df.to_csv(index=False).encode("utf-8-sig")
-        st.download_button(
-            "Exportar Histórico CSV",
-            csv_history,
-            "historico_url.csv",
-            "text/csv"
-        )
+        st.download_button("Exportar histórico CSV", csv_history, "historico_url.csv", "text/csv")
 
         st.subheader("Evolução do Score")
 
