@@ -1,0 +1,9 @@
+semgrep
+streamlit
+requests
+python-dotenv
+pandas
+google-genai
+python-whois
+tldextract
+reportlab
