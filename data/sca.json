@@ -1,0 +1,49 @@
+{
+  "dependencies": [
+    {
+      "name": "requests",
+      "version": "2.28.1",
+      "vulns": [
+        {
+          "id": "CVE-2023-32681",
+          "fix_versions": ["2.31.0"],
+          "description": "Vulnerabilidade relacionada a redirecionamento inseguro."
+        }
+      ]
+    },
+    {
+      "name": "urllib3",
+      "version": "1.26.5",
+      "vulns": [
+        {
+          "id": "CVE-2023-43804",
+          "fix_versions": ["2.0.6"],
+          "description": "Possível bypass TLS em conexões inseguras."
+        }
+      ]
+    },
+    {
+      "name": "pyjwt",
+      "version": "2.4.0",
+      "vulns": [
+        {
+          "id": "JWT-WEAK-ALGORITHM",
+          "fix_versions": ["2.8.0"],
+          "description": "Uso inseguro de algoritmos JWT fracos."
+        }
+      ]
+    },
+    {
+      "name": "jinja2",
+      "version": "2.11.2",
+      "vulns": [
+        {
+          "id": "SSTI-JINJA2",
+          "fix_versions": ["3.1.0"],
+          "description": "Possível Server-Side Template Injection."
+        }
+      ]
+    }
+  ],
+  "fixes": []
+}
