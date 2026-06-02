@@ -7,3 +7,4 @@ google-genai
 python-whois
 tldextract
 reportlab
+plotly>=5.20.0

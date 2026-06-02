@@ -202,6 +202,17 @@ def load_url_history():
     return df
 
 
+def clear_url_history():
+    """
+    Limpa todo o histórico de análises de URL.
+    """
+    conn = sqlite3.connect(DB_PATH)
+    cursor = conn.cursor()
+    cursor.execute("DELETE FROM url_history")
+    conn.commit()
+    conn.close()
+
+
 def clean_text(text):
     if not isinstance(text, str):
         return text
@@ -1657,6 +1668,92 @@ def render_donut_chart(df, category_col, value_col, title):
         st.warning(f"Não foi possível gerar o gráfico de pizza: {exc}")
 
 
+
+def render_source_cards(total_semgrep, total_bandit, total_sca, latest_url_score):
+    """
+    Mostra fontes integradas como cards, evitando tabela pesada no resumo.
+    """
+    sources = [
+        ("Semgrep", total_semgrep, "Análise estática de código"),
+        ("Bandit", total_bandit, "Análise de segurança Python"),
+        ("SCA", total_sca, "Bibliotecas e CVEs"),
+        ("URL Analysis", latest_url_score, "Headers, TLS e discovery"),
+    ]
+
+    cols = st.columns(4)
+
+    for index, (name, value, description) in enumerate(sources):
+        with cols[index]:
+            st.markdown(
+                f"""
+                <div class="enterprise-card" style="min-height: 128px;">
+                    <div style="font-size: 0.80rem; color: #94a3b8; font-weight: 900; text-transform: uppercase; letter-spacing: 0.08em;">
+                        {name}
+                    </div>
+                    <div style="font-size: 1.7rem; color: #f8fafc; font-weight: 950; margin-top: 0.35rem;">
+                        {value}
+                    </div>
+                    <div style="font-size: 0.84rem; color: #cbd5e1; margin-top: 0.5rem;">
+                        {description}
+                    </div>
+                </div>
+                """,
+                unsafe_allow_html=True,
+            )
+
+
+def render_history_cards(history_df):
+    """
+    Exibe o histórico em cards executivos, antes da tabela técnica.
+    """
+    if history_df.empty:
+        render_empty_state(
+            "Nenhuma análise registrada.",
+            "Execute uma análise de URL e clique em Salvar análise no histórico para acompanhar a evolução.",
+            "info"
+        )
+        return
+
+    preview_df = history_df.head(5)
+
+    for _, row in preview_df.iterrows():
+        score = int(row.get("score", 0))
+        classification = row.get("classification", "")
+        url = row.get("url", "")
+        created_at = row.get("created_at", "")
+        high_count = row.get("high_count", 0)
+        medium_count = row.get("medium_count", 0)
+        low_count = row.get("low_count", 0)
+
+        if score >= 85:
+            tone_color = "#22c55e"
+        elif score >= 65:
+            tone_color = "#f59e0b"
+        else:
+            tone_color = "#ef4444"
+
+        st.markdown(
+            f"""
+            <div class="enterprise-card" style="padding: 1rem 1.15rem; margin-bottom: 0.75rem;">
+                <div style="display: flex; justify-content: space-between; gap: 1rem; align-items: center;">
+                    <div>
+                        <div style="font-weight: 900; color: #f8fafc; font-size: 1rem;">{url}</div>
+                        <div style="color: #94a3b8; font-size: 0.84rem; margin-top: 0.25rem;">{created_at}</div>
+                        <div style="color: #cbd5e1; font-size: 0.82rem; margin-top: 0.45rem;">
+                            Alta: {high_count} | Média: {medium_count} | Baixa: {low_count}
+                        </div>
+                    </div>
+                    <div style="text-align: right;">
+                        <div style="font-size: 1.75rem; color: {tone_color}; font-weight: 950; line-height: 1;">{score}</div>
+                        <div style="color: #cbd5e1; font-size: 0.84rem; margin-top: 0.35rem;">{classification}</div>
+                    </div>
+                </div>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
+
+
 def apply_enterprise_theme():
     st.markdown(ENTERPRISE_CSS, unsafe_allow_html=True)
 
@@ -1740,6 +1837,19 @@ sca_active_df = filter_false_positives(sca_df_default, "sca")
 with tab1:
     st.subheader("Resumo Executivo")
 
+    st.markdown(
+        """
+        <div class="enterprise-card">
+            <div class="enterprise-section-title"></div>
+            <div class="enterprise-muted">
+                Consolidação dos resultados das ferramentas integradas, com foco em risco,
+                priorização e leitura executiva para apresentação da Sprint ASPM.
+            </div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
     total_semgrep = len(semgrep_active_df)
     total_bandit = len(bandit_active_df)
     total_sca = len(sca_active_df)
@@ -1754,18 +1864,24 @@ with tab1:
             total_medium += df_source[df_source["Prioridade"] == "Média"].shape[0]
             total_low += df_source[df_source["Prioridade"] == "Baixa"].shape[0]
 
-    history_df = load_url_history()
-
+    # O Resumo Executivo usa somente a análise atual da sessão.
+    # Isso evita que dados antigos do histórico contaminem o score ao abrir o sistema.
     latest_url_score = "Sem análise"
     latest_url_classification = "Sem análise"
 
-    if not history_df.empty:
-        latest = history_df.iloc[0]
-        latest_url_score = latest["score"]
-        latest_url_classification = latest["classification"]
-        total_high += int(latest["high_count"])
-        total_medium += int(latest["medium_count"])
-        total_low += int(latest["low_count"])
+    current_url_result = st.session_state.get("last_url_scan")
+
+    if current_url_result:
+        latest_url_score = current_url_result.get("score", "Sem análise")
+        latest_url_classification = current_url_result.get("classificacao", "Sem análise")
+
+        current_url_df = pd.DataFrame(current_url_result.get("findings", []))
+
+        if not current_url_df.empty:
+            current_active_df = current_url_df[current_url_df["Tipo"] == "Achado Ativo"]
+            total_high += current_active_df[current_active_df["Prioridade"] == "Alta"].shape[0]
+            total_medium += current_active_df[current_active_df["Prioridade"] == "Média"].shape[0]
+            total_low += current_active_df[current_active_df["Prioridade"] == "Baixa"].shape[0]
 
     general_score, general_classification = calculate_general_score(
         total_high,
@@ -1787,10 +1903,13 @@ with tab1:
         {"Fonte": "Semgrep", "Objetivo": "Análise estática de código", "Achados ativos": total_semgrep},
         {"Fonte": "Bandit", "Objetivo": "Análise de segurança Python", "Achados ativos": total_bandit},
         {"Fonte": "SCA", "Objetivo": "Análise de bibliotecas e CVEs", "Achados ativos": total_sca},
-        {"Fonte": "URL Analysis", "Objetivo": "Exposição, headers, TLS e discovery contextual", "Achados ativos": "Último score: " + str(latest_url_score)}
+        {"Fonte": "URL Analysis", "Objetivo": "Exposição, headers, TLS e discovery contextual", "Achados ativos": "Score atual: " + str(latest_url_score)}
     ])
 
-    st.dataframe(source_table, use_container_width=True)
+    render_source_cards(total_semgrep, total_bandit, total_sca, latest_url_score)
+
+    with st.expander("Ver tabela técnica das fontes"):
+        st.dataframe(source_table, use_container_width=True)
 
     chart_col1, chart_col2 = st.columns(2)
 
@@ -2250,10 +2369,30 @@ with tab6:
 
     history_df = load_url_history()
 
+    reset_col1, reset_col2 = st.columns([1, 4])
+
+    with reset_col1:
+        if st.button("Resetar histórico"):
+            clear_url_history()
+            st.session_state.last_url_scan = None
+            st.success("Histórico de URL resetado.")
+            st.rerun()
+
+    with reset_col2:
+        st.caption("Use o reset para limpar análises antigas e impedir que resultados desatualizados confundam a apresentação.")
+
     if history_df.empty:
-        st.info("Nenhuma análise registrada.")
+        render_empty_state(
+            "Nenhuma análise registrada.",
+            "Execute uma análise de URL e clique em Salvar análise no histórico para acompanhar a evolução.",
+            "info"
+        )
     else:
-        st.dataframe(history_df, use_container_width=True)
+        st.subheader("Últimas análises")
+        render_history_cards(history_df)
+
+        with st.expander("Ver tabela técnica completa do histórico"):
+            st.dataframe(history_df, use_container_width=True)
 
         csv_history = history_df.to_csv(index=False).encode("utf-8-sig")
         st.download_button("Exportar histórico CSV", csv_history, "historico_url.csv", "text/csv")
