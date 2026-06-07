@@ -1,4 +1,6 @@
 import json
+import base64
+import hashlib
 import os
 import re
 import ssl
@@ -954,6 +956,176 @@ def get_sca_vulnerabilities(data):
     return vulns
 
 
+
+# ============================================================
+# SECRETS SCANNER
+# ============================================================
+# Esta seção adiciona uma camada típica de ASPM:
+# detecção de segredos em código-fonte ou JSON do Gitleaks.
+# Ela é defensiva e serve para identificar credenciais expostas no próprio projeto.
+
+SECRET_RULES = [
+    {
+        "id": "AWS_ACCESS_KEY_ID",
+        "descricao": "Possível chave de acesso AWS encontrada.",
+        "regex": r"AKIA[0-9A-Z]{16}",
+        "prioridade": "Alta",
+    },
+    {
+        "id": "GITHUB_TOKEN",
+        "descricao": "Possível token do GitHub encontrado.",
+        "regex": r"ghp_[A-Za-z0-9_]{30,}",
+        "prioridade": "Alta",
+    },
+    {
+        "id": "GOOGLE_API_KEY",
+        "descricao": "Possível chave de API do Google encontrada.",
+        "regex": r"AIza[0-9A-Za-z\-_]{30,}",
+        "prioridade": "Alta",
+    },
+    {
+        "id": "PRIVATE_KEY",
+        "descricao": "Possível chave privada encontrada.",
+        "regex": r"-----BEGIN (RSA|OPENSSH|EC|DSA) PRIVATE KEY-----",
+        "prioridade": "Alta",
+    },
+    {
+        "id": "GENERIC_SECRET_ASSIGNMENT",
+        "descricao": "Possível segredo definido diretamente no código.",
+        "regex": r"(?i)(secret|token|password|passwd|api_key|apikey|client_secret)\s*[:=]\s*['\"][^'\"]{8,}['\"]",
+        "prioridade": "Média",
+    },
+    {
+        "id": "DATABASE_URL",
+        "descricao": "Possível string de conexão de banco de dados encontrada.",
+        "regex": r"(?i)(postgres|mysql|mongodb|redis)://[^\s'\"]+",
+        "prioridade": "Alta",
+    },
+    {
+        "id": "JWT_TOKEN",
+        "descricao": "Possível token JWT encontrado.",
+        "regex": r"eyJ[A-Za-z0-9_\-]{10,}\.[A-Za-z0-9_\-]{10,}\.[A-Za-z0-9_\-]{10,}",
+        "prioridade": "Média",
+    },
+]
+
+
+def mask_secret(value):
+    """
+    Mascara o segredo para evitar exibir credenciais completas no dashboard.
+    """
+    value = str(value)
+
+    if len(value) <= 10:
+        return "***"
+
+    return value[:4] + "***" + value[-4:]
+
+
+def get_line_number(text, index):
+    """
+    Calcula a linha aproximada onde o segredo foi encontrado.
+    """
+    return text[:index].count("\n") + 1
+
+
+def scan_text_for_secrets(filename, text):
+    """
+    Procura segredos em um arquivo de texto usando regex.
+    """
+    findings = []
+
+    for rule in SECRET_RULES:
+        for match in re.finditer(rule["regex"], text):
+            secret_value = match.group(0)
+            line_number = get_line_number(text, match.start())
+
+            findings.append({
+                "Origem": "Scanner Interno",
+                "Regra": rule["id"],
+                "Arquivo": filename,
+                "Linha": line_number,
+                "Prioridade": rule["prioridade"],
+                "Segredo Mascarado": mask_secret(secret_value),
+                "Descrição": rule["descricao"],
+            })
+
+    return findings
+
+
+def scan_uploaded_files_for_secrets(uploaded_files):
+    """
+    Escaneia arquivos enviados manualmente na aba Secrets.
+    Arquivos binários são ignorados.
+    """
+    findings = []
+
+    for uploaded_file in uploaded_files:
+        try:
+            raw = uploaded_file.getvalue()
+
+            try:
+                text = raw.decode("utf-8")
+            except UnicodeDecodeError:
+                text = raw.decode("latin-1", errors="ignore")
+
+            findings.extend(scan_text_for_secrets(uploaded_file.name, text))
+
+        except Exception:
+            pass
+
+    return findings
+
+
+def parse_gitleaks_json(data):
+    """
+    Converte JSON do Gitleaks para o formato padrão do dashboard.
+    O Gitleaks normalmente retorna uma lista de achados.
+    """
+    findings = []
+
+    if isinstance(data, dict):
+        possible_items = data.get("findings") or data.get("results") or []
+    elif isinstance(data, list):
+        possible_items = data
+    else:
+        possible_items = []
+
+    for item in possible_items:
+        rule = item.get("RuleID") or item.get("rule") or item.get("Rule") or "GITLEAKS_SECRET"
+        description = item.get("Description") or item.get("description") or "Possível segredo detectado pelo Gitleaks."
+        file_path = item.get("File") or item.get("file") or item.get("path") or "Não informado"
+        line = item.get("StartLine") or item.get("Line") or item.get("line") or "Não informado"
+        secret = item.get("Secret") or item.get("secret") or ""
+
+        findings.append({
+            "Origem": "Gitleaks",
+            "Regra": rule,
+            "Arquivo": file_path,
+            "Linha": line,
+            "Prioridade": "Alta",
+            "Segredo Mascarado": mask_secret(secret),
+            "Descrição": description,
+        })
+
+    return findings
+
+
+def calculate_secret_counts(secret_df):
+    """
+    Calcula contadores da aba Secrets.
+    """
+    if secret_df.empty:
+        return 0, 0, 0
+
+    high = secret_df[secret_df["Prioridade"] == "Alta"].shape[0]
+    medium = secret_df[secret_df["Prioridade"] == "Média"].shape[0]
+    low = secret_df[secret_df["Prioridade"] == "Baixa"].shape[0]
+
+    return high, medium, low
+
+
+
 def check_port(host, port, timeout=3):
     try:
         with socket.create_connection((host, port), timeout=timeout):
@@ -1272,6 +1444,9 @@ def init_false_positive_state():
 
     if "last_url_scan" not in st.session_state:
         st.session_state.last_url_scan = None
+
+    if "secret_results" not in st.session_state:
+        st.session_state.secret_results = []
 
 
 def is_false_positive(unique_id):
@@ -1754,6 +1929,81 @@ def render_history_cards(history_df):
         )
 
 
+
+def render_table_as_cards(df, title_key=None, subtitle_keys=None, badge_key=None, description_key=None, limit=10):
+    """
+    Renderiza linhas de DataFrame como cards para evitar aparência de planilha.
+    A tabela completa continua disponível no expander técnico.
+    """
+    if df.empty:
+        return
+
+    if subtitle_keys is None:
+        subtitle_keys = []
+
+    preview_df = df.head(limit)
+
+    for _, row in preview_df.iterrows():
+        if title_key and title_key in row:
+            title = row.get(title_key, "Item")
+        else:
+            title = row.iloc[0]
+
+        subtitle_parts = []
+
+        for key in subtitle_keys:
+            if key in row and str(row.get(key, "")).strip():
+                subtitle_parts.append(f"{key}: {row.get(key)}")
+
+        subtitle = " | ".join(subtitle_parts)
+
+        badge = ""
+        if badge_key and badge_key in row:
+            badge = str(row.get(badge_key, ""))
+
+        description = ""
+        if description_key and description_key in row:
+            description = str(row.get(description_key, ""))
+
+        badge_lower = badge.lower()
+
+        if badge_lower in ["alta", "high", "error"]:
+            badge_color = "#ef4444"
+        elif badge_lower in ["média", "media", "medium", "warning"]:
+            badge_color = "#f59e0b"
+        elif badge_lower in ["baixa", "low", "info"]:
+            badge_color = "#38bdf8"
+        else:
+            badge_color = "#cbd5e1"
+
+        st.markdown(
+            f"""
+            <div class="enterprise-card" style="padding: 1rem 1.15rem; margin-bottom: 0.75rem;">
+                <div style="display: flex; justify-content: space-between; gap: 1rem; align-items: flex-start;">
+                    <div style="max-width: 82%;">
+                        <div style="font-weight: 950; color: #f8fafc; font-size: 1rem;">{title}</div>
+                        <div style="color: #94a3b8; font-size: 0.84rem; margin-top: 0.35rem;">{subtitle}</div>
+                        <div style="color: #cbd5e1; font-size: 0.84rem; margin-top: 0.55rem; line-height: 1.45;">{description}</div>
+                    </div>
+                    <div style="color: {badge_color}; font-weight: 950; font-size: 0.9rem; white-space: nowrap;">
+                        {badge}
+                    </div>
+                </div>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
+
+
+def render_technical_table(label, df):
+    """
+    Mantém tabela completa em expander para consulta técnica.
+    """
+    with st.expander(label):
+        st.dataframe(df, use_container_width=True)
+
+
+
 def apply_enterprise_theme():
     st.markdown(ENTERPRISE_CSS, unsafe_allow_html=True)
 
@@ -1811,19 +2061,24 @@ if st.sidebar.button("Limpar falsos positivos manuais"):
     st.rerun()
 
 
-tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs([
+tab1, tab2, tab3, tab4, tab5, tab6, tab7, tab8 = st.tabs([
     "Resumo Executivo",
     "Semgrep",
     "Bandit",
     "SCA",
     "URL Analysis",
+    "Secrets",
+    "Attack Surface",
     "Histórico"
 ])
 
 
-semgrep_data_default = load_json("data/results.json", {"results": []})
-bandit_data_default = load_json("data/bandit.json", {"results": []})
-sca_data_default = load_json("data/sca.json", {"dependencies": []})
+# Os dados das ferramentas começam vazios para evitar que resultados antigos
+# apareçam automaticamente quando o dashboard é aberto.
+# Envie o JSON de cada ferramenta para popular as abas.
+semgrep_data_default = {"results": []}
+bandit_data_default = {"results": []}
+sca_data_default = {"dependencies": []}
 
 semgrep_df_default = pd.DataFrame(get_semgrep_vulnerabilities(semgrep_data_default))
 bandit_df_default = pd.DataFrame(get_bandit_vulnerabilities(bandit_data_default))
@@ -1832,6 +2087,8 @@ sca_df_default = pd.DataFrame(get_sca_vulnerabilities(sca_data_default))
 semgrep_active_df = filter_false_positives(semgrep_df_default, "semgrep")
 bandit_active_df = filter_false_positives(bandit_df_default, "bandit")
 sca_active_df = filter_false_positives(sca_df_default, "sca")
+
+secrets_df_default = pd.DataFrame(st.session_state.get("secret_results", []))
 
 
 with tab1:
@@ -1853,12 +2110,13 @@ with tab1:
     total_semgrep = len(semgrep_active_df)
     total_bandit = len(bandit_active_df)
     total_sca = len(sca_active_df)
+    total_secrets = len(secrets_df_default)
 
     total_high = 0
     total_medium = 0
     total_low = 0
 
-    for df_source in [semgrep_active_df, bandit_active_df, sca_active_df]:
+    for df_source in [semgrep_active_df, bandit_active_df, sca_active_df, secrets_df_default]:
         if not df_source.empty:
             total_high += df_source[df_source["Prioridade"] == "Alta"].shape[0]
             total_medium += df_source[df_source["Prioridade"] == "Média"].shape[0]
@@ -1903,10 +2161,11 @@ with tab1:
         {"Fonte": "Semgrep", "Objetivo": "Análise estática de código", "Achados ativos": total_semgrep},
         {"Fonte": "Bandit", "Objetivo": "Análise de segurança Python", "Achados ativos": total_bandit},
         {"Fonte": "SCA", "Objetivo": "Análise de bibliotecas e CVEs", "Achados ativos": total_sca},
+        {"Fonte": "Secrets", "Objetivo": "Detecção de segredos e credenciais", "Achados ativos": total_secrets},
         {"Fonte": "URL Analysis", "Objetivo": "Exposição, headers, TLS e discovery contextual", "Achados ativos": "Score atual: " + str(latest_url_score)}
     ])
 
-    render_source_cards(total_semgrep, total_bandit, total_sca, latest_url_score)
+    render_source_cards(total_semgrep, total_bandit, total_sca + total_secrets, latest_url_score)
 
     with st.expander("Ver tabela técnica das fontes"):
         st.dataframe(source_table, use_container_width=True)
@@ -1928,6 +2187,7 @@ with tab1:
             {"Fonte": "Semgrep", "Achados": total_semgrep},
             {"Fonte": "Bandit", "Achados": total_bandit},
             {"Fonte": "SCA", "Achados": total_sca},
+            {"Fonte": "Secrets", "Achados": total_secrets},
         ])
         render_donut_chart(source_chart, "Fonte", "Achados", "Achados por fonte")
 
@@ -1937,6 +2197,7 @@ Classificação geral: {general_classification}
 Achados Semgrep: {total_semgrep}
 Achados Bandit: {total_bandit}
 Achados SCA: {total_sca}
+Achados Secrets: {total_secrets}
 Riscos altos: {total_high}
 Riscos médios: {total_medium}
 Riscos baixos: {total_low}
@@ -1960,7 +2221,7 @@ with tab2:
         semgrep_data = json.load(uploaded_file)
         st.success("Arquivo JSON do Semgrep carregado com sucesso.")
     else:
-        st.info("Nenhum arquivo enviado. Usando data/results.json como padrão.")
+        st.info("Nenhum arquivo do Semgrep enviado. Envie um JSON para iniciar a análise SAST.")
         semgrep_data = semgrep_data_default
 
     semgrep_vulns = get_semgrep_vulnerabilities(semgrep_data)
@@ -1980,7 +2241,15 @@ with tab2:
         col4.metric("Baixa", low_count)
 
         tabela = filtered_df[["ID", "Arquivo", "Linha", "Severidade", "Prioridade", "Descrição"]]
-        st.dataframe(tabela, use_container_width=True)
+        render_table_as_cards(
+            tabela,
+            title_key="ID",
+            subtitle_keys=["Arquivo", "Linha", "Severidade"],
+            badge_key="Prioridade",
+            description_key="Descrição",
+            limit=8
+        )
+        render_technical_table("Ver tabela técnica completa", tabela)
 
         csv_data = tabela.to_csv(index=False).encode("utf-8-sig")
         st.download_button("Exportar CSV", csv_data, "semgrep.csv", "text/csv")
@@ -2007,7 +2276,14 @@ with tab2:
                     st.rerun()
 
     else:
-        st.info("Nenhuma vulnerabilidade encontrada pelo Semgrep.")
+        if uploaded_file is None:
+            render_empty_state(
+                "Aguardando arquivo do Semgrep.",
+                "Envie o JSON gerado pelo Semgrep para visualizar os achados de análise estática.",
+                "info"
+            )
+        else:
+            st.info("Nenhuma vulnerabilidade encontrada pelo Semgrep.")
 
 
 with tab3:
@@ -2019,7 +2295,7 @@ with tab3:
         bandit_data = json.load(uploaded_bandit)
         st.success("Arquivo JSON do Bandit carregado com sucesso.")
     else:
-        st.info("Nenhum arquivo enviado. Usando data/bandit.json como padrão.")
+        st.info("Nenhum arquivo do Bandit enviado. Envie um JSON para iniciar a análise Python.")
         bandit_data = bandit_data_default
 
     bandit_vulns = get_bandit_vulnerabilities(bandit_data)
@@ -2039,7 +2315,15 @@ with tab3:
         col4.metric("Baixa", low_count)
 
         tabela = filtered_df[["Teste", "Arquivo", "Linha", "Severidade", "Confiança", "Prioridade", "Descrição"]]
-        st.dataframe(tabela, use_container_width=True)
+        render_table_as_cards(
+            tabela,
+            title_key="Teste",
+            subtitle_keys=["Arquivo", "Linha", "Severidade", "Confiança"],
+            badge_key="Prioridade",
+            description_key="Descrição",
+            limit=8
+        )
+        render_technical_table("Ver tabela técnica completa", tabela)
 
         csv_data = tabela.to_csv(index=False).encode("utf-8-sig")
         st.download_button("Exportar CSV", csv_data, "bandit.csv", "text/csv")
@@ -2067,7 +2351,14 @@ with tab3:
                     st.rerun()
 
     else:
-        st.success("Nenhum achado encontrado pelo Bandit.")
+        if uploaded_bandit is None:
+            render_empty_state(
+                "Aguardando arquivo do Bandit.",
+                "Envie o JSON gerado pelo Bandit para visualizar os achados de segurança Python.",
+                "info"
+            )
+        else:
+            st.success("Nenhum achado encontrado pelo Bandit.")
 
 
 with tab4:
@@ -2079,7 +2370,7 @@ with tab4:
         sca_data = json.load(uploaded_sca)
         st.success("Arquivo SCA carregado com sucesso.")
     else:
-        st.info("Nenhum arquivo enviado. Usando data/sca.json como padrão.")
+        st.info("Nenhum arquivo SCA enviado. Envie um JSON para iniciar a análise de dependências.")
         sca_data = sca_data_default
 
     sca_vulns = get_sca_vulnerabilities(sca_data)
@@ -2097,7 +2388,15 @@ with tab4:
         col3.metric("Média", medium_count)
 
         tabela = filtered_df[["Biblioteca", "Versão Atual", "CVE", "Prioridade", "Correção Disponível", "Descrição"]]
-        st.dataframe(tabela, use_container_width=True)
+        render_table_as_cards(
+            tabela,
+            title_key="Biblioteca",
+            subtitle_keys=["Versão Atual", "CVE", "Correção Disponível"],
+            badge_key="Prioridade",
+            description_key="Descrição",
+            limit=8
+        )
+        render_technical_table("Ver tabela técnica completa", tabela)
 
         csv_data = tabela.to_csv(index=False).encode("utf-8-sig")
         st.download_button("Exportar CSV", csv_data, "sca.csv", "text/csv")
@@ -2125,7 +2424,14 @@ with tab4:
                     st.rerun()
 
     else:
-        st.success("Nenhuma vulnerabilidade encontrada na SCA.")
+        if uploaded_sca is None:
+            render_empty_state(
+                "Aguardando arquivo SCA.",
+                "Envie o JSON da análise de dependências para visualizar CVEs, versões vulneráveis e correções disponíveis.",
+                "info"
+            )
+        else:
+            st.success("Nenhuma vulnerabilidade encontrada na SCA.")
 
 
 with tab5:
@@ -2254,7 +2560,7 @@ with tab5:
             )
         else:
             render_compact_cards(active_url_df, limit=6)
-            st.dataframe(active_url_df, use_container_width=True)
+            render_technical_table("Ver tabela técnica de achados ativos", active_url_df)
 
         st.subheader("Melhorias Recomendadas")
 
@@ -2266,7 +2572,7 @@ with tab5:
             )
         else:
             render_compact_cards(improvements_df, limit=8)
-            st.dataframe(improvements_df, use_container_width=True)
+            render_technical_table("Ver tabela técnica de melhorias", improvements_df)
 
         st.subheader("Controles OK")
 
@@ -2278,7 +2584,7 @@ with tab5:
             )
         else:
             render_compact_cards(controls_ok_df, limit=8)
-            st.dataframe(controls_ok_df, use_container_width=True)
+            render_technical_table("Ver tabela técnica de controles OK", controls_ok_df)
 
         st.subheader("Falsos Positivos Detectados Automaticamente")
 
@@ -2290,7 +2596,7 @@ with tab5:
             )
         else:
             render_compact_cards(auto_fp_df, limit=8)
-            st.dataframe(auto_fp_df, use_container_width=True)
+            render_technical_table("Ver tabela técnica de falsos positivos", auto_fp_df)
 
         csv_url = active_url_df.to_csv(index=False).encode("utf-8-sig")
         st.download_button("Exportar CSV - Achados Ativos", csv_url, "url_analysis.csv", "text/csv")
@@ -2364,7 +2670,142 @@ with tab5:
             st.success("Análise salva no histórico.")
 
 
+
 with tab6:
+    st.subheader("Secrets Scanner")
+
+    st.info(
+        "Use esta aba para detectar segredos em arquivos do projeto ou importar um relatório JSON do Gitleaks."
+    )
+
+    uploaded_secret_files = st.file_uploader(
+        "Enviar arquivos de código para análise de segredos",
+        type=["py", "js", "ts", "tsx", "jsx", "json", "env", "txt", "yaml", "yml", "ini", "cfg", "toml"],
+        accept_multiple_files=True,
+        key="upload_secret_files"
+    )
+
+    uploaded_gitleaks = st.file_uploader(
+        "Enviar relatório JSON do Gitleaks",
+        type=["json"],
+        key="upload_gitleaks_json"
+    )
+
+    secret_findings = []
+
+    if uploaded_secret_files:
+        secret_findings.extend(scan_uploaded_files_for_secrets(uploaded_secret_files))
+
+    if uploaded_gitleaks is not None:
+        try:
+            gitleaks_data = json.load(uploaded_gitleaks)
+            secret_findings.extend(parse_gitleaks_json(gitleaks_data))
+            st.success("Relatório Gitleaks carregado com sucesso.")
+        except Exception as e:
+            st.error(f"Erro ao carregar JSON do Gitleaks: {e}")
+
+    st.session_state.secret_results = secret_findings
+
+    secret_df = pd.DataFrame(secret_findings)
+
+    if secret_df.empty:
+        render_empty_state(
+            "Nenhum segredo analisado.",
+            "Envie arquivos do projeto ou um JSON do Gitleaks para iniciar o Secrets Scanner.",
+            "info"
+        )
+    else:
+        high_count, medium_count, low_count = calculate_secret_counts(secret_df)
+
+        col1, col2, col3, col4 = st.columns(4)
+        col1.metric("Segredos", len(secret_df))
+        col2.metric("Alta", high_count)
+        col3.metric("Média", medium_count)
+        col4.metric("Baixa", low_count)
+
+        render_table_as_cards(
+            secret_df,
+            title_key="Regra",
+            subtitle_keys=["Origem", "Arquivo", "Linha"],
+            badge_key="Prioridade",
+            description_key="Descrição",
+            limit=10
+        )
+
+        render_technical_table("Ver tabela técnica de secrets", secret_df)
+
+        csv_secrets = secret_df.to_csv(index=False).encode("utf-8-sig")
+        st.download_button("Exportar CSV - Secrets", csv_secrets, "secrets_scan.csv", "text/csv")
+
+        pdf_secrets = generate_pdf_report(
+            "Relatório Secrets Scanner",
+            f"Total de possíveis segredos encontrados: {len(secret_df)}",
+            secret_df
+        )
+        st.download_button("Exportar PDF - Secrets", pdf_secrets, "secrets_scan.pdf", "application/pdf")
+
+
+with tab7:
+    st.subheader("Attack Surface")
+
+    current_url_result = st.session_state.get("last_url_scan")
+
+    if not current_url_result:
+        render_empty_state(
+            "Nenhuma superfície de ataque carregada.",
+            "Execute uma análise em URL Analysis para visualizar endpoints, controles, melhorias e falsos positivos contextualizados.",
+            "info"
+        )
+    else:
+        attack_df = pd.DataFrame(current_url_result.get("findings", []))
+
+        if attack_df.empty:
+            render_empty_state(
+                "Nenhum dado de superfície encontrado.",
+                "A última análise não retornou endpoints ou controles para exibição.",
+                "info"
+            )
+        else:
+            discovery_df = attack_df[attack_df["Categoria"] == "Discovery"]
+            active_df = attack_df[attack_df["Tipo"] == "Achado Ativo"]
+            improvements_df = attack_df[attack_df["Tipo"] == "Melhoria Recomendada"]
+            controls_df = attack_df[attack_df["Tipo"] == "Controle OK"]
+            false_positive_df = attack_df[attack_df["Tipo"] == "Falso Positivo Automático"]
+
+            col1, col2, col3, col4 = st.columns(4)
+            col1.metric("Endpoints", len(discovery_df))
+            col2.metric("Achados Ativos", len(active_df))
+            col3.metric("Melhorias", len(improvements_df))
+            col4.metric("Falsos Positivos", len(false_positive_df))
+
+            distribution_df = pd.DataFrame([
+                {"Tipo": "Achados Ativos", "Quantidade": len(active_df)},
+                {"Tipo": "Melhorias", "Quantidade": len(improvements_df)},
+                {"Tipo": "Controles OK", "Quantidade": len(controls_df)},
+                {"Tipo": "Falsos Positivos", "Quantidade": len(false_positive_df)},
+            ])
+            render_donut_chart(distribution_df, "Tipo", "Quantidade", "Superfície por classificação")
+
+            st.subheader("Endpoints descobertos")
+            if discovery_df.empty:
+                render_empty_state(
+                    "Nenhum endpoint de discovery identificado.",
+                    "A análise não encontrou rotas relevantes no discovery contextual.",
+                    "info"
+                )
+            else:
+                render_table_as_cards(
+                    discovery_df,
+                    title_key="Item",
+                    subtitle_keys=["Tipo", "Status", "Prioridade"],
+                    badge_key="Tipo",
+                    description_key="Descrição",
+                    limit=12
+                )
+                render_technical_table("Ver tabela técnica da superfície de ataque", discovery_df)
+
+
+with tab8:
     st.subheader("Histórico de análises de URL")
 
     history_df = load_url_history()
