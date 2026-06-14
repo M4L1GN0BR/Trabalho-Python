@@ -1,42 +1,64 @@
 import os
-import google.generativeai as genai
+
+import requests
 from dotenv import load_dotenv
 
 load_dotenv()
 
-API_KEY = os.getenv("GEMINI_API_KEY")
-
-if API_KEY:
-    genai.configure(api_key=API_KEY)
+API_KEY = os.getenv("DEEPSEEK_API_KEY")
+API_URL = os.getenv("DEEPSEEK_API_URL", "https://api.deepseek.com/chat/completions")
+MODEL = os.getenv("DEEPSEEK_MODEL", "deepseek-chat")
 
 
 def explain_vulnerability(check_id, message):
     if not API_KEY:
         return {
-            "explicacao": "Chave da API Gemini não configurada.",
+            "explicacao": "Chave da API DeepSeek não configurada.",
             "risco": "Não foi possível analisar o risco com IA real.",
-            "correcao": "Configure a variável GEMINI_API_KEY no arquivo .env."
+            "correcao": "Configure a variável DEEPSEEK_API_KEY no arquivo .env.",
         }
 
     try:
-        model = genai.GenerativeModel("gemini-1.5-flash")
-
         prompt = f"""
-        Você é um assistente de segurança de aplicações.
+Você é um assistente de segurança de aplicações.
 
-        Analise a vulnerabilidade abaixo e responda em português do Brasil de forma objetiva.
+Analise a vulnerabilidade abaixo e responda em português do Brasil de forma objetiva.
 
-        ID da vulnerabilidade: {check_id}
-        Mensagem da ferramenta: {message}
+ID da vulnerabilidade: {check_id}
+Mensagem da ferramenta: {message}
 
-        Responda exatamente neste formato:
-        EXPLICACAO: ...
-        RISCO: ...
-        CORRECAO: ...
-        """
+Responda exatamente neste formato:
+EXPLICACAO: ...
+RISCO: ...
+CORRECAO: ...
+"""
 
-        response = model.generate_content(prompt)
-        text = response.text.strip()
+        response = requests.post(
+            API_URL,
+            headers={
+                "Authorization": f"Bearer {API_KEY}",
+                "Content-Type": "application/json",
+            },
+            json={
+                "model": MODEL,
+                "messages": [
+                    {
+                        "role": "system",
+                        "content": "Você é um especialista brasileiro em segurança de aplicações. Responda sempre em português brasileiro.",
+                    },
+                    {
+                        "role": "user",
+                        "content": prompt,
+                    },
+                ],
+                "temperature": 0.2,
+            },
+            timeout=45,
+        )
+
+        response.raise_for_status()
+        data = response.json()
+        text = data["choices"][0]["message"]["content"].strip()
 
         explicacao = "Não disponível"
         risco = "Não disponível"
@@ -50,15 +72,11 @@ def explain_vulnerability(check_id, message):
             elif line.startswith("CORRECAO:"):
                 correcao = line.replace("CORRECAO:", "").strip()
 
-        return {
-            "explicacao": explicacao,
-            "risco": risco,
-            "correcao": correcao
-        }
+        return {"explicacao": explicacao, "risco": risco, "correcao": correcao}
 
     except Exception as e:
         return {
-            "explicacao": "Erro ao consultar o Gemini.",
+            "explicacao": "Erro ao consultar o DeepSeek.",
             "risco": f"Detalhe: {str(e)}",
-            "correcao": "Verifique a API key, conexão com internet e limite da API."
+            "correcao": "Verifique a API key, conexão com internet e limite da API.",
         }

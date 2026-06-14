@@ -17,7 +17,6 @@ import streamlit as st
 import tldextract
 
 from dotenv import load_dotenv
-from google import genai
 
 from reportlab.lib.pagesizes import A4
 from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle
@@ -27,8 +26,9 @@ from reportlab.lib import colors
 
 load_dotenv()
 
-API_KEY = os.getenv("GEMINI_API_KEY")
-client = genai.Client(api_key=API_KEY) if API_KEY else None
+DEEPSEEK_API_KEY = os.getenv("DEEPSEEK_API_KEY")
+DEEPSEEK_MODEL = os.getenv("DEEPSEEK_MODEL", "deepseek-chat")
+DEEPSEEK_API_URL = os.getenv("DEEPSEEK_API_URL", "https://api.deepseek.com/chat/completions")
 
 DB_PATH = "data/history.db"
 
@@ -202,6 +202,32 @@ def load_url_history():
     df = pd.read_sql_query("SELECT * FROM url_history ORDER BY id DESC", conn)
     conn.close()
     return df
+
+
+def auto_save_url_scan_once(result, high_count, medium_count, low_count):
+    """
+    Salva automaticamente a análise de URL uma única vez por execução.
+    Isso garante que o histórico apareça sem depender de clique manual.
+    """
+    if not result:
+        return
+
+    unique_key = f"{result.get('url_inicial')}|{result.get('url_final')}|{result.get('score')}|{high_count}|{medium_count}|{low_count}"
+
+    if unique_key in st.session_state.saved_url_scans:
+        return
+
+    save_url_history(
+        url=result["url_inicial"],
+        final_url=result["url_final"],
+        score=result["score"],
+        classification=result["classificacao"],
+        high_count=high_count,
+        medium_count=medium_count,
+        low_count=low_count
+    )
+
+    st.session_state.saved_url_scans.add(unique_key)
 
 
 def clear_url_history():
@@ -736,9 +762,56 @@ def local_ai_fallback(title, description):
     }
 
 
+def call_deepseek(prompt, temperature=0.2):
+    """
+    Chama a API DeepSeek pelo endpoint chat completions.
+    Configure no .env:
+    DEEPSEEK_API_KEY=seu_token_aqui
+    DEEPSEEK_MODEL=deepseek-chat
+    """
+    if not DEEPSEEK_API_KEY:
+        return ""
+
+    headers = {
+        "Authorization": f"Bearer {DEEPSEEK_API_KEY}",
+        "Content-Type": "application/json",
+    }
+
+    payload = {
+        "model": DEEPSEEK_MODEL,
+        "messages": [
+            {
+                "role": "system",
+                "content": "Você é um especialista brasileiro em ASPM, AppSec e DevSecOps. Responda sempre em português brasileiro.",
+            },
+            {
+                "role": "user",
+                "content": prompt,
+            },
+        ],
+        "temperature": temperature,
+    }
+
+    response = requests.post(
+        DEEPSEEK_API_URL,
+        headers=headers,
+        json=payload,
+        timeout=45,
+    )
+
+    response.raise_for_status()
+    data = response.json()
+
+    return data["choices"][0]["message"]["content"].strip()
+
+
 @st.cache_data(show_spinner=False)
 def ask_ai(title, description):
-    if not API_KEY or client is None:
+    """
+    Usa DeepSeek para explicar achados.
+    Caso a chave não esteja configurada ou a API falhe, usa fallback local.
+    """
+    if not DEEPSEEK_API_KEY:
         return local_ai_fallback(title, description)
 
     try:
@@ -751,7 +824,9 @@ Regras:
 - Se o item for "Controle OK", explique que está correto e não é vulnerabilidade.
 - Se o item for "Falso Positivo Automático", explique por que não é vulnerabilidade real.
 - Se o item estiver OK, presente, válido ou protegido, NÃO diga que é fragilidade.
+- Se for "Melhoria Recomendada", trate como hardening, não como vulnerabilidade crítica.
 - Diferencie vulnerabilidade real, melhoria recomendada, hardening e falso positivo.
+- Não invente evidências que não estejam na descrição.
 
 TÍTULO:
 {title}
@@ -766,12 +841,7 @@ RISCO: ...
 CORRECAO: ...
 """
 
-        response = client.models.generate_content(
-            model="models/gemini-2.0-flash-lite",
-            contents=prompt,
-        )
-
-        text = clean_text(response.text.strip()) if response.text else ""
+        text = clean_text(call_deepseek(prompt, temperature=0.2))
         fallback = local_ai_fallback(title, description)
 
         explicacao = extract_section(text, ["EXPLICACAO", "EXPLICAÇÃO"])
@@ -790,11 +860,14 @@ CORRECAO: ...
 
 @st.cache_data(show_spinner=False)
 def ask_executive_summary(context):
-    if not API_KEY or client is None:
+    """
+    Gera resumo executivo usando DeepSeek.
+    """
+    if not DEEPSEEK_API_KEY:
         return (
             "A aplicação apresenta achados distribuídos entre análise estática, segurança Python, "
-            "dependências e exposição de URL. A prioridade deve ser corrigir riscos altos, revisar "
-            "endpoints expostos e manter as dependências atualizadas."
+            "dependências, segredos e exposição de URL. A prioridade deve ser corrigir riscos altos, "
+            "revisar endpoints expostos e manter dependências atualizadas."
         )
 
     try:
@@ -803,24 +876,23 @@ Você é um especialista brasileiro em ASPM e DevSecOps.
 
 RESPONDA SEMPRE EM PORTUGUÊS BRASILEIRO.
 
-Com base no contexto abaixo, gere um resumo executivo curto para apresentação de uma plataforma ASPM.
+Com base no contexto abaixo, gere um resumo executivo curto, direto e profissional
+para uma plataforma ASPM. Evite linguagem acadêmica.
 
 CONTEXTO:
 {context}
 """
 
-        response = client.models.generate_content(
-            model="models/gemini-2.0-flash-lite",
-            contents=prompt,
-        )
+        text = call_deepseek(prompt, temperature=0.2)
 
-        return clean_text(response.text.strip()) if response.text else "A IA não retornou resumo executivo."
+        return clean_text(text) if text else "A IA não retornou resumo executivo."
 
     except Exception:
         return (
             "Não foi possível gerar o resumo executivo com IA. Recomenda-se priorizar os achados "
-            "classificados como Alta, revisar exposição externa e corrigir dependências vulneráveis."
+            "classificados como Alta, revisar exposição externa, corrigir segredos e atualizar dependências vulneráveis."
         )
+
 
 
 def load_json(file_path, default=None):
@@ -1447,6 +1519,9 @@ def init_false_positive_state():
 
     if "secret_results" not in st.session_state:
         st.session_state.secret_results = []
+
+    if "saved_url_scans" not in st.session_state:
+        st.session_state.saved_url_scans = set()
 
 
 def is_false_positive(unique_id):
@@ -2657,17 +2732,7 @@ with tab5:
                         "evidência suficiente de vulnerabilidade real no conteúdo da página."
                     )
 
-        if st.button("Salvar análise no histórico"):
-            save_url_history(
-                url=result["url_inicial"],
-                final_url=result["url_final"],
-                score=result["score"],
-                classification=result["classificacao"],
-                high_count=high_count,
-                medium_count=medium_count,
-                low_count=low_count
-            )
-            st.success("Análise salva no histórico.")
+        st.caption("A análise atual é salva automaticamente no histórico.")
 
 
 
@@ -2816,6 +2881,7 @@ with tab8:
         if st.button("Resetar histórico"):
             clear_url_history()
             st.session_state.last_url_scan = None
+            st.session_state.saved_url_scans = set()
             st.success("Histórico de URL resetado.")
             st.rerun()
 
