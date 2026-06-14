@@ -1,78 +1,121 @@
-import os
+"""
+Módulo de análise de vulnerabilidades assistida por IA.
 
-import requests
-from dotenv import load_dotenv
+Usa o DeepSeek para analisar achados de segurança e retornar:
+- Explicação em linguagem de negócio
+- Avaliação de exploitabilidade real
+- Re-priorização baseada em contexto
+- Recomendação de correção
+"""
 
-load_dotenv()
+from .deepseek_client import DEEPSEEK_API_KEY, call_deepseek
 
-API_KEY = os.getenv("DEEPSEEK_API_KEY")
-API_URL = os.getenv("DEEPSEEK_API_URL", "https://api.deepseek.com/chat/completions")
-MODEL = os.getenv("DEEPSEEK_MODEL", "deepseek-chat")
+SYSTEM_VULN_ANALYST = """
+Você é um analista sênior de Application Security especializado em ASPM.
+
+Para cada vulnerabilidade, você deve:
+
+1. EXPLICAR o problema em linguagem que um CISO ou gerente entenda
+   - Não seja puramente técnico — traduza o risco em impacto de negócio
+   - Use português brasileiro claro e direto
+
+2. AVALIAR a EXPLOITABILIDADE real:
+   - Requer autenticação? Apenas ataque remoto sem interação? Depende de outra condição?
+   - Existe CVE pública? exploit conhecido? É provável ser atacado no mundo real?
+   - Classifique como: "Exploitável remotamente", "Exploitável com autenticação",
+     "Baixa exploitabilidade" ou "Improvável"
+
+3. RE-PRIORIZAR com base no contexto real, não na severidade da ferramenta:
+   - Alta → risco real e explorável sem autenticação
+   - Média → risco condicional ou que requer outra vulnerabilidade
+   - Baixa → hardening, informação, falso positivo ou risco teórico
+
+4. RECOMENDAR uma ação de correção específica, priorizada e acionável
+
+REGRAS:
+- Se o ID indicar falso positivo conhecido (ex: regra muito genérica), rebaixe a prioridade
+- Se for um "Controle OK", apenas confirme que está seguro, não invente risco
+- Se for hardening (ex: header CSP ausente), trate como melhoria, não como vulnerabilidade
+- NUNCA invente informações que não estejam nos dados fornecidos
+- Responda EXATAMENTE no formato abaixo, uma linha por campo
+""".strip()
 
 
 def explain_vulnerability(check_id, message):
-    if not API_KEY:
+    """
+    Analisa uma vulnerabilidade usando DeepSeek.
+
+    Parameters
+    ----------
+    check_id : str
+        ID da regra/check que disparou (ex: "python.lang.security.exec.os-system")
+    message : str
+        Mensagem descritiva da ferramenta sobre o achado.
+
+    Returns
+    -------
+    dict
+        {
+            "explicacao": str,   # explicação em linguagem de negócio
+            "risco": str,        # risco + exploitabilidade + prioridade sugerida
+            "correcao": str,     # ação recomendada
+        }
+    """
+    if not DEEPSEEK_API_KEY:
         return {
             "explicacao": "Chave da API DeepSeek não configurada.",
             "risco": "Não foi possível analisar o risco com IA real.",
             "correcao": "Configure a variável DEEPSEEK_API_KEY no arquivo .env.",
         }
 
-    try:
-        prompt = f"""
-Você é um assistente de segurança de aplicações.
+    prompt = f"""
+Analise a vulnerabilidade abaixo e retorne a análise no formato exato solicitado.
 
-Analise a vulnerabilidade abaixo e responda em português do Brasil de forma objetiva.
+ID da vulnerabilidade (check_id):
+{check_id}
 
-ID da vulnerabilidade: {check_id}
-Mensagem da ferramenta: {message}
+Descrição da ferramenta:
+{message}
 
-Responda exatamente neste formato:
-EXPLICACAO: ...
-RISCO: ...
-CORRECAO: ...
+Formato de resposta (uma linha por campo, sem pular linhas):
+EXPLICACAO: <explicação em linguagem de negócio, 1-2 frases>
+RISCO: <exploitabilidade + prioridade sugerida + impacto, 1-2 frases>
+CORRECAO: <ação específica e priorizada, 1 frase>
 """
 
-        response = requests.post(
-            API_URL,
-            headers={
-                "Authorization": f"Bearer {API_KEY}",
-                "Content-Type": "application/json",
-            },
-            json={
-                "model": MODEL,
-                "messages": [
-                    {
-                        "role": "system",
-                        "content": "Você é um especialista brasileiro em segurança de aplicações. Responda sempre em português brasileiro.",
-                    },
-                    {
-                        "role": "user",
-                        "content": prompt,
-                    },
-                ],
-                "temperature": 0.2,
-            },
-            timeout=45,
+    try:
+        text = call_deepseek(
+            prompt=prompt,
+            system_prompt=SYSTEM_VULN_ANALYST,
+            temperature=0.1,  # baixa temperatura = mais determinístico
+            max_tokens=1024,
         )
 
-        response.raise_for_status()
-        data = response.json()
-        text = data["choices"][0]["message"]["content"].strip()
+        if not text:
+            return {
+                "explicacao": "A IA não retornou resposta.",
+                "risco": "Não foi possível analisar o risco com IA.",
+                "correcao": "Tente novamente ou revise a configuração da API.",
+            }
 
         explicacao = "Não disponível"
         risco = "Não disponível"
         correcao = "Não disponível"
 
         for line in text.splitlines():
-            if line.startswith("EXPLICACAO:"):
-                explicacao = line.replace("EXPLICACAO:", "").strip()
-            elif line.startswith("RISCO:"):
-                risco = line.replace("RISCO:", "").strip()
-            elif line.startswith("CORRECAO:"):
-                correcao = line.replace("CORRECAO:", "").strip()
+            line = line.strip()
+            if line.upper().startswith("EXPLICACAO:"):
+                explicacao = line.split(":", 1)[1].strip()
+            elif line.upper().startswith("RISCO:"):
+                risco = line.split(":", 1)[1].strip()
+            elif line.upper().startswith("CORRECAO:"):
+                correcao = line.split(":", 1)[1].strip()
 
-        return {"explicacao": explicacao, "risco": risco, "correcao": correcao}
+        return {
+            "explicacao": explicacao,
+            "risco": risco,
+            "correcao": correcao,
+        }
 
     except Exception as e:
         return {

@@ -1,0 +1,130 @@
+# ASPM Scan - Application Security Posture Management
+#
+# Executa automaticamente os scanners de segurança:
+# - Semgrep (SAST)
+# - Bandit (segurança Python)
+# - Safety (SCA - dependências)
+# - Gitleaks (segredos)
+# - Trivy (IaC + container)
+#
+# Agendamento: todo dia às 6h UTC
+# Também roda em push na main
+# Resultados salvos como artefato para o dashboard consumir
+
+name: ASPM Scan
+
+on:
+  schedule:
+    - cron: '0 6 * * *'   # todo dia 6h UTC
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:        # permite execução manual
+
+jobs:
+  scan:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout do repositório
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: 'pip'
+
+      - name: Instalar dependências do projeto
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Instalar ferramentas de segurança
+        run: |
+          pip install semgrep bandit safety
+          # Trivy (via script oficial)
+          curl -sfL https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/install.sh | sh
+          sudo mv ./bin/trivy /usr/local/bin/trivy
+          # Gitleaks
+          curl -sSfL https://github.com/gitleaks/gitleaks/releases/latest/download/gitleaks-linux-amd64 \
+            -o /usr/local/bin/gitleaks
+          chmod +x /usr/local/bin/gitleaks
+
+      - name: Verificar ferramentas instaladas
+        run: |
+          semgrep --version
+          bandit --version
+          safety --version
+          trivy --version
+          gitleaks --version
+
+      - name: Executar ASPM Scan
+        run: |
+          python src/main.py scan \
+            --repo . \
+            --output ./aspm-output
+
+      - name: Upload do relatório consolidado
+        uses: actions/upload-artifact@v4
+        with:
+          name: aspm-report
+          path: |
+            aspm-output/*.json
+          retention-days: 30
+
+      - name: Resumo do scan
+        run: |
+          if [ -f aspm-output/aspm-report.json ]; then
+            TOTAL=$(python -c "import json; d=json.load(open('aspm-output/aspm-report.json')); print(d['scan_metadata']['summary']['total_findings'])")
+            ALTA=$(python -c "import json; d=json.load(open('aspm-output/aspm-report.json')); print(d['scan_metadata']['summary']['by_severity']['Alta'])")
+            echo "## 🔒 ASPM Scan Results" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "| Métrica | Valor |" >> $GITHUB_STEP_SUMMARY
+            echo "|---------|-------|" >> $GITHUB_STEP_SUMMARY
+            echo "| Total de achados | $TOTAL |" >> $GITHUB_STEP_SUMMARY
+            echo "| Alta | $ALTA |" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "Baixe o artefato **aspm-report** para visualizar no dashboard." >> $GITHUB_STEP_SUMMARY
+          fi
+
+  # Opcional: comenta na PR se encontrar segredos ou críticos
+  comment-pr:
+    needs: scan
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Baixar relatório
+        uses: actions/download-artifact@v4
+        with:
+          name: aspm-report
+          path: ./aspm-output
+
+      - name: Comentar na PR se houver críticos
+        run: |
+          if [ -f aspm-output/aspm-report.json ]; then
+            python -c "
+import json
+d = json.load(open('aspm-output/aspm-report.json'))
+alta = d['scan_metadata']['summary']['by_severity']['Alta']
+total = d['scan_metadata']['summary']['total_findings']
+gitleaks = len(d.get('secrets', {}).get('gitleaks', []))
+msg = f'🔒 **ASPM Scan**\\n\\n- Total: {total} achados\\n- Alta: {alta}\\n- Segredos: {gitleaks}\\n\\nBaixe o artifact `aspm-report` para detalhes.'
+print(msg)
+            " > comment.txt
+          fi
+
+      - name: Postar comentário na PR
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const body = fs.readFileSync('comment.txt', 'utf8');
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: body
+            });

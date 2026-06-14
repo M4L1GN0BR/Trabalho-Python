@@ -1,34 +1,31 @@
-import json
 import base64
 import hashlib
+import json
 import os
 import re
-import ssl
 import socket
 import sqlite3
+import ssl
+import sys
 from datetime import datetime
-from urllib.parse import urlparse
 from io import BytesIO
+from pathlib import Path
+from urllib.parse import urlparse
 
-import pandas as pd
 import altair as alt
+import pandas as pd
 import requests
 import streamlit as st
 import tldextract
-
-from dotenv import load_dotenv
-
-from reportlab.lib.pagesizes import A4
-from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle
-from reportlab.lib.styles import getSampleStyleSheet
 from reportlab.lib import colors
+from reportlab.lib.pagesizes import A4
+from reportlab.lib.styles import getSampleStyleSheet
+from reportlab.platypus import Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle
 
+# Garante que o diretório raiz do projeto está no path para imports
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-load_dotenv()
-
-DEEPSEEK_API_KEY = os.getenv("DEEPSEEK_API_KEY")
-DEEPSEEK_MODEL = os.getenv("DEEPSEEK_MODEL", "deepseek-chat")
-DEEPSEEK_API_URL = os.getenv("DEEPSEEK_API_URL", "https://api.deepseek.com/chat/completions")
+from src.core.ia.deepseek_client import DEEPSEEK_API_KEY, call_deepseek
 
 DB_PATH = "data/history.db"
 
@@ -172,26 +169,31 @@ def init_db():
     conn.close()
 
 
-def save_url_history(url, final_url, score, classification, high_count, medium_count, low_count):
+def save_url_history(
+    url, final_url, score, classification, high_count, medium_count, low_count
+):
     conn = sqlite3.connect(DB_PATH)
     cursor = conn.cursor()
 
-    cursor.execute("""
+    cursor.execute(
+        """
         INSERT INTO url_history (
             created_at, url, final_url, score, classification,
             high_count, medium_count, low_count
         )
         VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-    """, (
-        datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-        url,
-        final_url,
-        score,
-        classification,
-        high_count,
-        medium_count,
-        low_count
-    ))
+    """,
+        (
+            datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+            url,
+            final_url,
+            score,
+            classification,
+            high_count,
+            medium_count,
+            low_count,
+        ),
+    )
 
     conn.commit()
     conn.close()
@@ -224,7 +226,7 @@ def auto_save_url_scan_once(result, high_count, medium_count, low_count):
         classification=result["classificacao"],
         high_count=high_count,
         medium_count=medium_count,
-        low_count=low_count
+        low_count=low_count,
     )
 
     st.session_state.saved_url_scans.add(unique_key)
@@ -431,7 +433,7 @@ def classify_discovered_endpoint(path, target, status, html, content_type, final
                 f"O endpoint {path} respondeu {status}, indicando restrição de acesso. "
                 f"Não houve evidência de conteúdo sensível exposto."
             ),
-            "evidencias": []
+            "evidencias": [],
         }
 
     # robots.txt e sitemap.xml são esperados em sites públicos.
@@ -442,7 +444,7 @@ def classify_discovered_endpoint(path, target, status, html, content_type, final
                 "priority": "Média",
                 "status_text": f"Possível referência sensível ({status})",
                 "reason": f"O arquivo {path} é público e contém possíveis referências sensíveis.",
-                "evidencias": sensitive_evidence + regex_evidence
+                "evidencias": sensitive_evidence + regex_evidence,
             }
 
         return {
@@ -450,7 +452,7 @@ def classify_discovered_endpoint(path, target, status, html, content_type, final
             "priority": "Baixa",
             "status_text": f"Arquivo público esperado ({status})",
             "reason": f"O arquivo {path} é comum em sites públicos e não representa vulnerabilidade crítica sozinho.",
-            "evidencias": []
+            "evidencias": [],
         }
 
     # WordPress login/admin comum não é falha sem evidência.
@@ -461,7 +463,7 @@ def classify_discovered_endpoint(path, target, status, html, content_type, final
                 "priority": "Média",
                 "status_text": f"WordPress com evidência técnica ({status})",
                 "reason": f"O endpoint {path} apresentou evidência técnica ou sensível que exige revisão.",
-                "evidencias": evidences
+                "evidencias": evidences,
             }
 
         return {
@@ -472,7 +474,7 @@ def classify_discovered_endpoint(path, target, status, html, content_type, final
                 f"O endpoint {path} indica presença de WordPress/login, mas não há evidência de bypass, "
                 f"acesso sem autenticação, enumeração ou falha explorável."
             ),
-            "evidencias": []
+            "evidencias": [],
         }
 
     # APIs e documentações só são achado se houver API real exposta.
@@ -483,16 +485,23 @@ def classify_discovered_endpoint(path, target, status, html, content_type, final
                 "priority": "Alta",
                 "status_text": f"API com possível dado sensível ({status})",
                 "reason": f"O endpoint {path} aparenta conter dado sensível.",
-                "evidencias": sensitive_evidence + regex_evidence
+                "evidencias": sensitive_evidence + regex_evidence,
             }
 
-        if api_like_response or "swagger ui" in combined_lower or "openapi" in combined_lower or "graphql playground" in combined_lower or "graphiql" in combined_lower:
+        if (
+            api_like_response
+            or "swagger ui" in combined_lower
+            or "openapi" in combined_lower
+            or "graphql playground" in combined_lower
+            or "graphiql" in combined_lower
+        ):
             return {
                 "tipo": "Achado Ativo",
                 "priority": "Média",
                 "status_text": f"Documentação/API exposta ({status})",
                 "reason": f"O endpoint {path} aparenta expor documentação técnica ou interface de API.",
-                "evidencias": technical_evidence or ["Resposta com aparência de API/documentação técnica"]
+                "evidencias": technical_evidence
+                or ["Resposta com aparência de API/documentação técnica"],
             }
 
         return {
@@ -503,7 +512,7 @@ def classify_discovered_endpoint(path, target, status, html, content_type, final
                 f"O endpoint {path} respondeu, mas não apresentou JSON técnico, OpenAPI, Swagger, "
                 f"GraphQL Playground, endpoints exploráveis ou dados sensíveis."
             ),
-            "evidencias": []
+            "evidencias": [],
         }
 
     # Admin, login e dashboard: login comum não é vulnerabilidade.
@@ -517,7 +526,7 @@ def classify_discovered_endpoint(path, target, status, html, content_type, final
                     f"O endpoint {path} redirecionou para wp-login.php. Isso indica tela de login comum, "
                     f"não vulnerabilidade confirmada."
                 ),
-                "evidencias": []
+                "evidencias": [],
             }
 
         if sensitive_evidence or regex_evidence:
@@ -526,7 +535,7 @@ def classify_discovered_endpoint(path, target, status, html, content_type, final
                 "priority": "Alta",
                 "status_text": f"Dado sensível em área sensível ({status})",
                 "reason": f"O endpoint {path} apresentou possíveis dados sensíveis.",
-                "evidencias": sensitive_evidence + regex_evidence
+                "evidencias": sensitive_evidence + regex_evidence,
             }
 
         if technical_evidence:
@@ -535,7 +544,7 @@ def classify_discovered_endpoint(path, target, status, html, content_type, final
                 "priority": "Média",
                 "status_text": f"Evidência técnica em área sensível ({status})",
                 "reason": f"O endpoint {path} contém sinais técnicos de exposição.",
-                "evidencias": technical_evidence
+                "evidencias": technical_evidence,
             }
 
         if login_form:
@@ -547,7 +556,7 @@ def classify_discovered_endpoint(path, target, status, html, content_type, final
                     f"O endpoint {path} possui formulário de login, mas login comum não prova vulnerabilidade, "
                     f"bypass ou acesso indevido."
                 ),
-                "evidencias": []
+                "evidencias": [],
             }
 
         if public_score > 0:
@@ -559,7 +568,7 @@ def classify_discovered_endpoint(path, target, status, html, content_type, final
                     f"O endpoint {path} respondeu, mas o conteúdo parece público, institucional "
                     f"ou informativo."
                 ),
-                "evidencias": []
+                "evidencias": [],
             }
 
         return {
@@ -570,7 +579,7 @@ def classify_discovered_endpoint(path, target, status, html, content_type, final
                 f"O endpoint {path} respondeu, mas não há evidência de acesso indevido, vazamento, "
                 f"debug, erro interno ou painel administrativo acessível."
             ),
-            "evidencias": []
+            "evidencias": [],
         }
 
     # dev, test e debug só são achado se tiver evidência técnica real.
@@ -581,7 +590,7 @@ def classify_discovered_endpoint(path, target, status, html, content_type, final
                 "priority": "Alta",
                 "status_text": f"Possível vazamento em endpoint técnico ({status})",
                 "reason": f"O endpoint {path} apresentou possíveis dados sensíveis.",
-                "evidencias": sensitive_evidence + regex_evidence
+                "evidencias": sensitive_evidence + regex_evidence,
             }
 
         if technical_evidence:
@@ -590,7 +599,7 @@ def classify_discovered_endpoint(path, target, status, html, content_type, final
                 "priority": "Alta",
                 "status_text": f"Recurso técnico exposto ({status})",
                 "reason": f"O endpoint {path} apresenta sinais técnicos como debug, stack trace, ambiente ou erro interno.",
-                "evidencias": technical_evidence
+                "evidencias": technical_evidence,
             }
 
         return {
@@ -601,7 +610,7 @@ def classify_discovered_endpoint(path, target, status, html, content_type, final
                 f"O endpoint {path} respondeu, mas não apresentou debug, stack trace, arquivos internos "
                 f"ou dados sensíveis."
             ),
-            "evidencias": []
+            "evidencias": [],
         }
 
     # Arquivos sensíveis só são achado se o conteúdo realmente parecer sensível.
@@ -612,7 +621,7 @@ def classify_discovered_endpoint(path, target, status, html, content_type, final
                 "priority": "Alta",
                 "status_text": f"Exposição sensível ({status})",
                 "reason": f"O endpoint {path} aparenta expor informação técnica ou configuração sensível.",
-                "evidencias": evidences
+                "evidencias": evidences,
             }
 
         return {
@@ -620,7 +629,7 @@ def classify_discovered_endpoint(path, target, status, html, content_type, final
             "priority": "Baixa",
             "status_text": f"Sem evidência sensível ({status})",
             "reason": f"O endpoint {path} respondeu, mas não há evidência suficiente de vazamento sensível.",
-            "evidencias": []
+            "evidencias": [],
         }
 
     if status in [301, 302]:
@@ -629,7 +638,7 @@ def classify_discovered_endpoint(path, target, status, html, content_type, final
             "priority": "Baixa",
             "status_text": f"Redireciona ({status})",
             "reason": f"O endpoint {path} apenas redireciona e não apresentou evidência direta de exposição sensível.",
-            "evidencias": []
+            "evidencias": [],
         }
 
     return {
@@ -637,7 +646,7 @@ def classify_discovered_endpoint(path, target, status, html, content_type, final
         "priority": "Baixa",
         "status_text": f"Sem evidência crítica ({status})",
         "reason": f"O endpoint {path} respondeu, mas não há evidência suficiente para classificar como vulnerabilidade real.",
-        "evidencias": []
+        "evidencias": [],
     }
 
 
@@ -657,12 +666,16 @@ def generate_pdf_report(title, summary, dataframe):
         table_data = [list(dataframe.columns)] + dataframe.astype(str).values.tolist()
         table = Table(table_data, repeatRows=1)
 
-        table.setStyle(TableStyle([
-            ("BACKGROUND", (0, 0), (-1, 0), colors.lightgrey),
-            ("GRID", (0, 0), (-1, -1), 0.5, colors.grey),
-            ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
-            ("FONTSIZE", (0, 0), (-1, -1), 7),
-        ]))
+        table.setStyle(
+            TableStyle(
+                [
+                    ("BACKGROUND", (0, 0), (-1, 0), colors.lightgrey),
+                    ("GRID", (0, 0), (-1, -1), 0.5, colors.grey),
+                    ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
+                    ("FONTSIZE", (0, 0), (-1, -1), 7),
+                ]
+            )
+        )
 
         elements.append(table)
 
@@ -734,99 +747,72 @@ def default_correction(text):
 def local_ai_fallback(title, description):
     text = f"{title} {description}".lower()
 
-    if "tipo: controle ok" in text or "site utiliza https" in text or "status: ok" in text:
+    if (
+        "tipo: controle ok" in text
+        or "site utiliza https" in text
+        or "status: ok" in text
+    ):
         return {
             "explicacao": "Este item representa um controle de segurança funcionando corretamente.",
             "risco": "Nenhum risco direto identificado neste item.",
-            "correcao": "Nenhuma ação necessária, apenas manter monitoramento periódico."
+            "correcao": "Nenhuma ação necessária, apenas manter monitoramento periódico.",
         }
 
     if "tipo: falso positivo automático" in text:
         return {
             "explicacao": "O item foi identificado pelo discovery, mas a análise contextual não encontrou evidência de vulnerabilidade real.",
             "risco": "Baixo. O item foi separado como falso positivo automático.",
-            "correcao": "Nenhuma correção obrigatória. Recomenda-se apenas revisão manual se necessário."
+            "correcao": "Nenhuma correção obrigatória. Recomenda-se apenas revisão manual se necessário.",
         }
 
     if "tipo: melhoria recomendada" in text:
         return {
             "explicacao": "Este item representa uma melhoria de hardening. Ele fortalece a segurança, mas não comprova uma vulnerabilidade explorável sozinho.",
             "risco": "Baixo a moderado, dependendo do contexto. Deve ser priorizado após vulnerabilidades confirmadas.",
-            "correcao": default_correction(text)
+            "correcao": default_correction(text),
         }
 
     return {
         "explicacao": f"O item analisado ({title}) pode representar uma fragilidade de segurança.",
         "risco": description,
-        "correcao": default_correction(f"{title} {description}")
+        "correcao": default_correction(f"{title} {description}"),
     }
-
-
-def call_deepseek(prompt, temperature=0.2):
-    """
-    Chama a API DeepSeek pelo endpoint chat completions.
-    Configure no .env:
-    DEEPSEEK_API_KEY=seu_token_aqui
-    DEEPSEEK_MODEL=deepseek-chat
-    """
-    if not DEEPSEEK_API_KEY:
-        return ""
-
-    headers = {
-        "Authorization": f"Bearer {DEEPSEEK_API_KEY}",
-        "Content-Type": "application/json",
-    }
-
-    payload = {
-        "model": DEEPSEEK_MODEL,
-        "messages": [
-            {
-                "role": "system",
-                "content": "Você é um especialista brasileiro em ASPM, AppSec e DevSecOps. Responda sempre em português brasileiro.",
-            },
-            {
-                "role": "user",
-                "content": prompt,
-            },
-        ],
-        "temperature": temperature,
-    }
-
-    response = requests.post(
-        DEEPSEEK_API_URL,
-        headers=headers,
-        json=payload,
-        timeout=45,
-    )
-
-    response.raise_for_status()
-    data = response.json()
-
-    return data["choices"][0]["message"]["content"].strip()
 
 
 @st.cache_data(show_spinner=False)
 def ask_ai(title, description):
     """
-    Usa DeepSeek para explicar achados.
+    Usa DeepSeek para analisar achados com contexto decisório.
     Caso a chave não esteja configurada ou a API falhe, usa fallback local.
     """
     if not DEEPSEEK_API_KEY:
         return local_ai_fallback(title, description)
 
+    system_prompt = """
+Você é um analista sênior de Application Security em uma plataforma ASPM.
+
+Para cada item, você deve:
+
+1. EXPLICAR em linguagem de negócio (como se fosse para um CISO)
+2. CLASSIFICAR o tipo real:
+   - "Vulnerabilidade" → risco confirmado e explorável
+   - "Hardening" → melhoria de segurança, não vulnerabilidade
+   - "Controle OK" → item seguro, sem ação
+   - "Falso Positivo" → não é vulnerabilidade real
+3. RE-PRIORIZAR se necessário: a severidade original da ferramenta pode não refletir o risco real
+4. RECOMENDAR correção acionável e priorizada
+
+Regras obrigatórias:
+- Se o item for "Controle OK", apenas confirme que está correto
+- Se for "Falso Positivo Automático", explique por que não é vulnerabilidade
+- Se for "Melhoria Recomendada" (ex: header CSP ausente), trate como hardening, não como vulnerabilidade
+- NUNCA invente informações que não estejam na descrição
+- Responda EXATAMENTE no formato abaixo
+""".strip()
+
     try:
         prompt = f"""
-Você é um especialista brasileiro em ASPM, AppSec e segurança de aplicações.
-
-RESPONDA SEMPRE EM PORTUGUÊS BRASILEIRO.
-
-Regras:
-- Se o item for "Controle OK", explique que está correto e não é vulnerabilidade.
-- Se o item for "Falso Positivo Automático", explique por que não é vulnerabilidade real.
-- Se o item estiver OK, presente, válido ou protegido, NÃO diga que é fragilidade.
-- Se for "Melhoria Recomendada", trate como hardening, não como vulnerabilidade crítica.
-- Diferencie vulnerabilidade real, melhoria recomendada, hardening e falso positivo.
-- Não invente evidências que não estejam na descrição.
+Analise o item abaixo e retorne no formato exato solicitado.
 
 TÍTULO:
 {title}
@@ -834,14 +820,20 @@ TÍTULO:
 DESCRIÇÃO:
 {description}
 
-Responda EXATAMENTE neste formato:
-
-EXPLICACAO: ...
-RISCO: ...
-CORRECAO: ...
+Formato de resposta (uma linha por campo):
+EXPLICACAO: <explicação em linguagem de negócio, 1-2 frases>
+RISCO: <tipo real + exploitabilidade + prioridade sugerida, 1-2 frases>
+CORRECAO: <ação específica e priorizada, 1 frase>
 """
 
-        text = clean_text(call_deepseek(prompt, temperature=0.2))
+        text = clean_text(
+            call_deepseek(
+                prompt=prompt,
+                system_prompt=system_prompt,
+                temperature=0.1,
+                max_tokens=1024,
+            )
+        )
         fallback = local_ai_fallback(title, description)
 
         explicacao = extract_section(text, ["EXPLICACAO", "EXPLICAÇÃO"])
@@ -861,7 +853,7 @@ CORRECAO: ...
 @st.cache_data(show_spinner=False)
 def ask_executive_summary(context):
     """
-    Gera resumo executivo usando DeepSeek.
+    Gera resumo executivo usando DeepSeek com análise decisória.
     """
     if not DEEPSEEK_API_KEY:
         return (
@@ -870,20 +862,38 @@ def ask_executive_summary(context):
             "revisar endpoints expostos e manter dependências atualizadas."
         )
 
+    system_prompt = """
+Você é um diretor de segurança (CISO) revisando o relatório executivo de uma plataforma ASPM.
+
+Gere um resumo executivo que:
+1. DESTAQUE os riscos mais críticos (o que precisa de atenção imediata)
+2. CONTEXTE a postura geral de segurança com base nos números
+3. RECOMENDE prioridades de ação na próxima sprint
+
+Seja direto, profissional e evite linguagem acadêmica.
+Use português brasileiro.
+""".strip()
+
     try:
         prompt = f"""
-Você é um especialista brasileiro em ASPM e DevSecOps.
+Com base no contexto abaixo, gere um resumo executivo CURTO, DIRETO e PROFISSIONAL
+para um relatório ASPM.
 
-RESPONDA SEMPRE EM PORTUGUÊS BRASILEIRO.
-
-Com base no contexto abaixo, gere um resumo executivo curto, direto e profissional
-para uma plataforma ASPM. Evite linguagem acadêmica.
+Inclua:
+- Quantos riscos críticos merecem atenção imediata
+- Qual o score geral de segurança
+- Recomendação principal de curto prazo
 
 CONTEXTO:
 {context}
 """
 
-        text = call_deepseek(prompt, temperature=0.2)
+        text = call_deepseek(
+            prompt=prompt,
+            system_prompt=system_prompt,
+            temperature=0.1,
+            max_tokens=1024,
+        )
 
         return clean_text(text) if text else "A IA não retornou resumo executivo."
 
@@ -892,7 +902,6 @@ CONTEXTO:
             "Não foi possível gerar o resumo executivo com IA. Recomenda-se priorizar os achados "
             "classificados como Alta, revisar exposição externa, corrigir segredos e atualizar dependências vulneráveis."
         )
-
 
 
 def load_json(file_path, default=None):
@@ -951,17 +960,19 @@ def get_semgrep_vulnerabilities(data):
 
         ai_data = ask_ai(check_id, message)
 
-        vulns.append({
-            "ID": check_id,
-            "Arquivo": item.get("path"),
-            "Linha": item.get("start", {}).get("line"),
-            "Severidade": severity,
-            "Prioridade": priority,
-            "Descrição": message,
-            "Explicação IA": ai_data["explicacao"],
-            "Risco IA": ai_data["risco"],
-            "Correção IA": ai_data["correcao"],
-        })
+        vulns.append(
+            {
+                "ID": check_id,
+                "Arquivo": item.get("path"),
+                "Linha": item.get("start", {}).get("line"),
+                "Severidade": severity,
+                "Prioridade": priority,
+                "Descrição": message,
+                "Explicação IA": ai_data["explicacao"],
+                "Risco IA": ai_data["risco"],
+                "Correção IA": ai_data["correcao"],
+            }
+        )
 
     return vulns
 
@@ -979,18 +990,20 @@ def get_bandit_vulnerabilities(data):
 
         ai_data = ask_ai(test_name, text)
 
-        vulns.append({
-            "Teste": test_name,
-            "Arquivo": item.get("filename"),
-            "Linha": item.get("line_number"),
-            "Severidade": severity,
-            "Confiança": confidence,
-            "Prioridade": priority,
-            "Descrição": text,
-            "Explicação IA": ai_data["explicacao"],
-            "Risco IA": ai_data["risco"],
-            "Correção IA": ai_data["correcao"],
-        })
+        vulns.append(
+            {
+                "Teste": test_name,
+                "Arquivo": item.get("filename"),
+                "Linha": item.get("line_number"),
+                "Severidade": severity,
+                "Confiança": confidence,
+                "Prioridade": priority,
+                "Descrição": text,
+                "Explicação IA": ai_data["explicacao"],
+                "Risco IA": ai_data["risco"],
+                "Correção IA": ai_data["correcao"],
+            }
+        )
 
     return vulns
 
@@ -1013,20 +1026,21 @@ def get_sca_vulnerabilities(data):
 
             ai_data = ask_ai(vuln_id, description)
 
-            vulns.append({
-                "Biblioteca": name,
-                "Versão Atual": version,
-                "CVE": vuln_id,
-                "Prioridade": priority,
-                "Correção Disponível": fixed_version,
-                "Descrição": description,
-                "Explicação IA": ai_data["explicacao"],
-                "Risco IA": ai_data["risco"],
-                "Correção IA": ai_data["correcao"],
-            })
+            vulns.append(
+                {
+                    "Biblioteca": name,
+                    "Versão Atual": version,
+                    "CVE": vuln_id,
+                    "Prioridade": priority,
+                    "Correção Disponível": fixed_version,
+                    "Descrição": description,
+                    "Explicação IA": ai_data["explicacao"],
+                    "Risco IA": ai_data["risco"],
+                    "Correção IA": ai_data["correcao"],
+                }
+            )
 
     return vulns
-
 
 
 # ============================================================
@@ -1112,15 +1126,17 @@ def scan_text_for_secrets(filename, text):
             secret_value = match.group(0)
             line_number = get_line_number(text, match.start())
 
-            findings.append({
-                "Origem": "Scanner Interno",
-                "Regra": rule["id"],
-                "Arquivo": filename,
-                "Linha": line_number,
-                "Prioridade": rule["prioridade"],
-                "Segredo Mascarado": mask_secret(secret_value),
-                "Descrição": rule["descricao"],
-            })
+            findings.append(
+                {
+                    "Origem": "Scanner Interno",
+                    "Regra": rule["id"],
+                    "Arquivo": filename,
+                    "Linha": line_number,
+                    "Prioridade": rule["prioridade"],
+                    "Segredo Mascarado": mask_secret(secret_value),
+                    "Descrição": rule["descricao"],
+                }
+            )
 
     return findings
 
@@ -1164,21 +1180,39 @@ def parse_gitleaks_json(data):
         possible_items = []
 
     for item in possible_items:
-        rule = item.get("RuleID") or item.get("rule") or item.get("Rule") or "GITLEAKS_SECRET"
-        description = item.get("Description") or item.get("description") or "Possível segredo detectado pelo Gitleaks."
-        file_path = item.get("File") or item.get("file") or item.get("path") or "Não informado"
-        line = item.get("StartLine") or item.get("Line") or item.get("line") or "Não informado"
+        rule = (
+            item.get("RuleID")
+            or item.get("rule")
+            or item.get("Rule")
+            or "GITLEAKS_SECRET"
+        )
+        description = (
+            item.get("Description")
+            or item.get("description")
+            or "Possível segredo detectado pelo Gitleaks."
+        )
+        file_path = (
+            item.get("File") or item.get("file") or item.get("path") or "Não informado"
+        )
+        line = (
+            item.get("StartLine")
+            or item.get("Line")
+            or item.get("line")
+            or "Não informado"
+        )
         secret = item.get("Secret") or item.get("secret") or ""
 
-        findings.append({
-            "Origem": "Gitleaks",
-            "Regra": rule,
-            "Arquivo": file_path,
-            "Linha": line,
-            "Prioridade": "Alta",
-            "Segredo Mascarado": mask_secret(secret),
-            "Descrição": description,
-        })
+        findings.append(
+            {
+                "Origem": "Gitleaks",
+                "Regra": rule,
+                "Arquivo": file_path,
+                "Linha": line,
+                "Prioridade": "Alta",
+                "Segredo Mascarado": mask_secret(secret),
+                "Descrição": description,
+            }
+        )
 
     return findings
 
@@ -1195,7 +1229,6 @@ def calculate_secret_counts(secret_df):
     low = secret_df[secret_df["Prioridade"] == "Baixa"].shape[0]
 
     return high, medium, low
-
 
 
 def check_port(host, port, timeout=3):
@@ -1235,7 +1268,7 @@ def check_ssl_certificate(host):
             "status": status,
             "priority": priority,
             "description": f"Certificado TLS com {days_left} dias restantes.",
-            "tipo": tipo
+            "tipo": tipo,
         }
 
     except Exception as e:
@@ -1243,11 +1276,13 @@ def check_ssl_certificate(host):
             "status": "Erro",
             "priority": "Média",
             "description": str(e),
-            "tipo": "Achado Ativo"
+            "tipo": "Achado Ativo",
         }
 
 
-def make_url_finding(category, item, status, priority, description, tipo="Achado Ativo", evidencias=None):
+def make_url_finding(
+    category, item, status, priority, description, tipo="Achado Ativo", evidencias=None
+):
     """
     Cria um item padronizado para URL Analysis.
 
@@ -1265,7 +1300,7 @@ def make_url_finding(category, item, status, priority, description, tipo="Achado
         "Status": status,
         "Prioridade": priority,
         "Evidências": build_evidence_summary(evidencias),
-        "Descrição": description
+        "Descrição": description,
     }
 
 
@@ -1280,7 +1315,7 @@ def scan_common_paths(base_url):
                 target,
                 timeout=5,
                 allow_redirects=True,
-                headers={"User-Agent": "ASPM-Scanner/1.0"}
+                headers={"User-Agent": "ASPM-Scanner/1.0"},
             )
 
             status = response.status_code
@@ -1295,7 +1330,7 @@ def scan_common_paths(base_url):
                     status=status,
                     html=html,
                     content_type=content_type,
-                    final_url=final_url
+                    final_url=final_url,
                 )
 
                 tipo = classification["tipo"]
@@ -1312,15 +1347,17 @@ def scan_common_paths(base_url):
                     f"Análise contextual: {reason}"
                 )
 
-                findings.append(make_url_finding(
-                    "Discovery",
-                    path,
-                    status_text,
-                    priority,
-                    description,
-                    tipo,
-                    evidencias
-                ))
+                findings.append(
+                    make_url_finding(
+                        "Discovery",
+                        path,
+                        status_text,
+                        priority,
+                        description,
+                        tipo,
+                        evidencias,
+                    )
+                )
 
         except Exception:
             pass
@@ -1381,7 +1418,7 @@ def analyze_url(url):
             url,
             timeout=10,
             allow_redirects=True,
-            headers={"User-Agent": "ASPM-Scanner/1.0"}
+            headers={"User-Agent": "ASPM-Scanner/1.0"},
         )
 
         headers = response.headers
@@ -1391,25 +1428,29 @@ def analyze_url(url):
         base_url = f"{parsed.scheme}://{parsed.netloc}"
         uses_https = parsed.scheme == "https"
 
-        findings.append(make_url_finding(
-            "HTTPS",
-            "HTTPS",
-            "OK" if uses_https else "Ausente",
-            "Baixa" if uses_https else "Alta",
-            "Site utiliza HTTPS." if uses_https else "Site não utiliza HTTPS.",
-            "Controle OK" if uses_https else "Achado Ativo"
-        ))
+        findings.append(
+            make_url_finding(
+                "HTTPS",
+                "HTTPS",
+                "OK" if uses_https else "Ausente",
+                "Baixa" if uses_https else "Alta",
+                "Site utiliza HTTPS." if uses_https else "Site não utiliza HTTPS.",
+                "Controle OK" if uses_https else "Achado Ativo",
+            )
+        )
 
         if uses_https and host:
             cert_result = check_ssl_certificate(host)
-            findings.append(make_url_finding(
-                "TLS",
-                "Certificado SSL",
-                cert_result["status"],
-                cert_result["priority"],
-                cert_result["description"],
-                cert_result["tipo"]
-            ))
+            findings.append(
+                make_url_finding(
+                    "TLS",
+                    "Certificado SSL",
+                    cert_result["status"],
+                    cert_result["priority"],
+                    cert_result["description"],
+                    cert_result["tipo"],
+                )
+            )
 
         security_headers = {
             "Content-Security-Policy": "Média",
@@ -1422,65 +1463,77 @@ def analyze_url(url):
 
         for header, priority in security_headers.items():
             if header in headers:
-                findings.append(make_url_finding(
-                    "Headers",
-                    header,
-                    "Presente",
-                    "Baixa",
-                    headers.get(header),
-                    "Controle OK"
-                ))
+                findings.append(
+                    make_url_finding(
+                        "Headers",
+                        header,
+                        "Presente",
+                        "Baixa",
+                        headers.get(header),
+                        "Controle OK",
+                    )
+                )
             else:
-                findings.append(make_url_finding(
-                    "Headers",
-                    header,
-                    "Ausente",
-                    priority,
-                    f"{header} ausente. Isso representa melhoria de hardening, não vulnerabilidade explorável confirmada.",
-                    "Melhoria Recomendada",
-                    [f"Header {header} ausente"]
-                ))
+                findings.append(
+                    make_url_finding(
+                        "Headers",
+                        header,
+                        "Ausente",
+                        priority,
+                        f"{header} ausente. Isso representa melhoria de hardening, não vulnerabilidade explorável confirmada.",
+                        "Melhoria Recomendada",
+                        [f"Header {header} ausente"],
+                    )
+                )
 
         if headers.get("Server"):
-            findings.append(make_url_finding(
-                "Exposição",
-                "Server",
-                "Exposto",
-                "Baixa",
-                headers.get("Server"),
-                "Melhoria Recomendada",
-                ["Header Server exposto"]
-            ))
+            findings.append(
+                make_url_finding(
+                    "Exposição",
+                    "Server",
+                    "Exposto",
+                    "Baixa",
+                    headers.get("Server"),
+                    "Melhoria Recomendada",
+                    ["Header Server exposto"],
+                )
+            )
 
         if headers.get("X-Powered-By"):
-            findings.append(make_url_finding(
-                "Exposição",
-                "X-Powered-By",
-                "Exposto",
-                "Média",
-                headers.get("X-Powered-By"),
-                "Melhoria Recomendada",
-                ["Header X-Powered-By exposto"]
-            ))
+            findings.append(
+                make_url_finding(
+                    "Exposição",
+                    "X-Powered-By",
+                    "Exposto",
+                    "Média",
+                    headers.get("X-Powered-By"),
+                    "Melhoria Recomendada",
+                    ["Header X-Powered-By exposto"],
+                )
+            )
 
         if host:
-            findings.append(make_url_finding(
-                "Rede",
-                "Porta 80",
-                check_port(host, 80),
-                "Baixa",
-                "Verificação HTTP.",
-                "Controle OK"
-            ))
+            findings.append(
+                make_url_finding(
+                    "Rede",
+                    "Porta 80",
+                    check_port(host, 80),
+                    "Baixa",
+                    "Verificação HTTP.",
+                    "Controle OK",
+                )
+            )
 
-            findings.append(make_url_finding(
-                "Rede",
-                "Porta 443",
-                check_port(host, 443),
-                "Baixa",
-                "Verificação HTTPS.",
-                "Controle OK"
-            ))
+            findings.append(
+                make_url_finding(
+                    "Rede",
+                    "Porta 443",
+                    check_port(host, 443),
+                    "Baixa",
+                    "Verificação HTTPS.",
+                    "Controle OK",
+                )
+            )
 
         findings.extend(scan_common_paths(base_url))
 
@@ -1505,7 +1558,9 @@ def analyze_url(url):
             "score": 0,
             "classificacao": "Crítica",
             "findings": [
-                make_url_finding("Erro", "Conexão", "Erro", "Alta", str(e), "Achado Ativo")
+                make_url_finding(
+                    "Erro", "Conexão", "Erro", "Alta", str(e), "Achado Ativo"
+                )
             ],
         }
 
@@ -1543,16 +1598,20 @@ def filter_false_positives(df, source):
     if source == "semgrep":
         return df[
             ~df.apply(
-                lambda row: is_false_positive(f"semgrep_{row['ID']}_{row['Arquivo']}_{row['Linha']}"),
-                axis=1
+                lambda row: is_false_positive(
+                    f"semgrep_{row['ID']}_{row['Arquivo']}_{row['Linha']}"
+                ),
+                axis=1,
             )
         ]
 
     if source == "bandit":
         return df[
             ~df.apply(
-                lambda row: is_false_positive(f"bandit_{row['Teste']}_{row['Arquivo']}_{row['Linha']}"),
-                axis=1
+                lambda row: is_false_positive(
+                    f"bandit_{row['Teste']}_{row['Arquivo']}_{row['Linha']}"
+                ),
+                axis=1,
             )
         ]
 
@@ -1560,12 +1619,11 @@ def filter_false_positives(df, source):
         return df[
             ~df.apply(
                 lambda row: is_false_positive(f"sca_{row['Biblioteca']}_{row['CVE']}"),
-                axis=1
+                axis=1,
             )
         ]
 
     return df
-
 
 
 init_db()
@@ -1771,8 +1829,6 @@ ENTERPRISE_CSS = """
 """
 
 
-
-
 def render_status_card(title, value, description, tone="neutral"):
     """
     Renderiza um card executivo para destacar resultado sem depender de st.metric.
@@ -1826,7 +1882,9 @@ def render_empty_state(title, description, tone="good"):
     )
 
 
-def render_compact_cards(df, title_col="Item", subtitle_col="Categoria", status_col="Status", limit=8):
+def render_compact_cards(
+    df, title_col="Item", subtitle_col="Categoria", status_col="Status", limit=8
+):
     """
     Mostra itens em formato de cards compactos antes da tabela.
     Isso deixa a leitura mais executiva e reduz a sensação de lista técnica infinita.
@@ -1862,7 +1920,6 @@ def render_compact_cards(df, title_col="Item", subtitle_col="Categoria", status_
         )
 
 
-
 def render_donut_chart(df, category_col, value_col, title):
     """
     Renderiza gráfico de pizza/donut usando Altair.
@@ -1870,7 +1927,9 @@ def render_donut_chart(df, category_col, value_col, title):
     """
     try:
         chart_df = df.copy()
-        chart_df[value_col] = pd.to_numeric(chart_df[value_col], errors="coerce").fillna(0)
+        chart_df[value_col] = pd.to_numeric(
+            chart_df[value_col], errors="coerce"
+        ).fillna(0)
 
         if chart_df[value_col].sum() <= 0:
             st.info("Sem dados suficientes para gerar o gráfico.")
@@ -1903,7 +1962,9 @@ def render_donut_chart(df, category_col, value_col, title):
                 ),
                 tooltip=[
                     alt.Tooltip(field=category_col, type="nominal", title="Categoria"),
-                    alt.Tooltip(field=value_col, type="quantitative", title="Quantidade"),
+                    alt.Tooltip(
+                        field=value_col, type="quantitative", title="Quantidade"
+                    ),
                 ],
             )
             .properties(height=360, title=title)
@@ -1916,7 +1977,6 @@ def render_donut_chart(df, category_col, value_col, title):
 
     except Exception as exc:
         st.warning(f"Não foi possível gerar o gráfico de pizza: {exc}")
-
 
 
 def render_source_cards(total_semgrep, total_bandit, total_sca, latest_url_score):
@@ -1959,8 +2019,8 @@ def render_history_cards(history_df):
     if history_df.empty:
         render_empty_state(
             "Nenhuma análise registrada.",
-            "Execute uma análise de URL e clique em Salvar análise no histórico para acompanhar a evolução.",
-            "info"
+            "Execute uma análise de URL na aba URL Analysis. O histórico é salvo automaticamente.",
+            "info",
         )
         return
 
@@ -2004,8 +2064,14 @@ def render_history_cards(history_df):
         )
 
 
-
-def render_table_as_cards(df, title_key=None, subtitle_keys=None, badge_key=None, description_key=None, limit=10):
+def render_table_as_cards(
+    df,
+    title_key=None,
+    subtitle_keys=None,
+    badge_key=None,
+    description_key=None,
+    limit=10,
+):
     """
     Renderiza linhas de DataFrame como cards para evitar aparência de planilha.
     A tabela completa continua disponível no expander técnico.
@@ -2078,7 +2144,6 @@ def render_technical_table(label, df):
         st.dataframe(df, use_container_width=True)
 
 
-
 def apply_enterprise_theme():
     st.markdown(ENTERPRISE_CSS, unsafe_allow_html=True)
 
@@ -2136,16 +2201,18 @@ if st.sidebar.button("Limpar falsos positivos manuais"):
     st.rerun()
 
 
-tab1, tab2, tab3, tab4, tab5, tab6, tab7, tab8 = st.tabs([
-    "Resumo Executivo",
-    "Semgrep",
-    "Bandit",
-    "SCA",
-    "URL Analysis",
-    "Secrets",
-    "Attack Surface",
-    "Histórico"
-])
+tab1, tab2, tab3, tab4, tab5, tab6, tab7, tab8 = st.tabs(
+    [
+        "Resumo Executivo",
+        "Semgrep",
+        "Bandit",
+        "SCA",
+        "URL Analysis",
+        "Secrets",
+        "Attack Surface",
+        "Histórico",
+    ]
+)
 
 
 # Os dados das ferramentas começam vazios para evitar que resultados antigos
@@ -2191,7 +2258,12 @@ with tab1:
     total_medium = 0
     total_low = 0
 
-    for df_source in [semgrep_active_df, bandit_active_df, sca_active_df, secrets_df_default]:
+    for df_source in [
+        semgrep_active_df,
+        bandit_active_df,
+        sca_active_df,
+        secrets_df_default,
+    ]:
         if not df_source.empty:
             total_high += df_source[df_source["Prioridade"] == "Alta"].shape[0]
             total_medium += df_source[df_source["Prioridade"] == "Média"].shape[0]
@@ -2206,20 +2278,26 @@ with tab1:
 
     if current_url_result:
         latest_url_score = current_url_result.get("score", "Sem análise")
-        latest_url_classification = current_url_result.get("classificacao", "Sem análise")
+        latest_url_classification = current_url_result.get(
+            "classificacao", "Sem análise"
+        )
 
         current_url_df = pd.DataFrame(current_url_result.get("findings", []))
 
         if not current_url_df.empty:
             current_active_df = current_url_df[current_url_df["Tipo"] == "Achado Ativo"]
-            total_high += current_active_df[current_active_df["Prioridade"] == "Alta"].shape[0]
-            total_medium += current_active_df[current_active_df["Prioridade"] == "Média"].shape[0]
-            total_low += current_active_df[current_active_df["Prioridade"] == "Baixa"].shape[0]
+            total_high += current_active_df[
+                current_active_df["Prioridade"] == "Alta"
+            ].shape[0]
+            total_medium += current_active_df[
+                current_active_df["Prioridade"] == "Média"
+            ].shape[0]
+            total_low += current_active_df[
+                current_active_df["Prioridade"] == "Baixa"
+            ].shape[0]
 
     general_score, general_classification = calculate_general_score(
-        total_high,
-        total_medium,
-        total_low
+        total_high, total_medium, total_low
     )
 
     col1, col2, col3, col4, col5 = st.columns(5)
@@ -2232,15 +2310,39 @@ with tab1:
 
     st.subheader("Fontes integradas")
 
-    source_table = pd.DataFrame([
-        {"Fonte": "Semgrep", "Objetivo": "Análise estática de código", "Achados ativos": total_semgrep},
-        {"Fonte": "Bandit", "Objetivo": "Análise de segurança Python", "Achados ativos": total_bandit},
-        {"Fonte": "SCA", "Objetivo": "Análise de bibliotecas e CVEs", "Achados ativos": total_sca},
-        {"Fonte": "Secrets", "Objetivo": "Detecção de segredos e credenciais", "Achados ativos": total_secrets},
-        {"Fonte": "URL Analysis", "Objetivo": "Exposição, headers, TLS e discovery contextual", "Achados ativos": "Score atual: " + str(latest_url_score)}
-    ])
+    source_table = pd.DataFrame(
+        [
+            {
+                "Fonte": "Semgrep",
+                "Objetivo": "Análise estática de código",
+                "Achados ativos": total_semgrep,
+            },
+            {
+                "Fonte": "Bandit",
+                "Objetivo": "Análise de segurança Python",
+                "Achados ativos": total_bandit,
+            },
+            {
+                "Fonte": "SCA",
+                "Objetivo": "Análise de bibliotecas e CVEs",
+                "Achados ativos": total_sca,
+            },
+            {
+                "Fonte": "Secrets",
+                "Objetivo": "Detecção de segredos e credenciais",
+                "Achados ativos": total_secrets,
+            },
+            {
+                "Fonte": "URL Analysis",
+                "Objetivo": "Exposição, headers, TLS e discovery contextual",
+                "Achados ativos": "Score atual: " + str(latest_url_score),
+            },
+        ]
+    )
 
-    render_source_cards(total_semgrep, total_bandit, total_sca + total_secrets, latest_url_score)
+    render_source_cards(
+        total_semgrep, total_bandit, total_sca + total_secrets, latest_url_score
+    )
 
     with st.expander("Ver tabela técnica das fontes"):
         st.dataframe(source_table, use_container_width=True)
@@ -2249,21 +2351,27 @@ with tab1:
 
     with chart_col1:
         st.subheader("Distribuição de Severidade")
-        severity_chart = pd.DataFrame([
-            {"Severidade": "Alta", "Quantidade": total_high},
-            {"Severidade": "Média", "Quantidade": total_medium},
-            {"Severidade": "Baixa", "Quantidade": total_low},
-        ])
-        render_donut_chart(severity_chart, "Severidade", "Quantidade", "Riscos por severidade")
+        severity_chart = pd.DataFrame(
+            [
+                {"Severidade": "Alta", "Quantidade": total_high},
+                {"Severidade": "Média", "Quantidade": total_medium},
+                {"Severidade": "Baixa", "Quantidade": total_low},
+            ]
+        )
+        render_donut_chart(
+            severity_chart, "Severidade", "Quantidade", "Riscos por severidade"
+        )
 
     with chart_col2:
         st.subheader("Cobertura por Fonte")
-        source_chart = pd.DataFrame([
-            {"Fonte": "Semgrep", "Achados": total_semgrep},
-            {"Fonte": "Bandit", "Achados": total_bandit},
-            {"Fonte": "SCA", "Achados": total_sca},
-            {"Fonte": "Secrets", "Achados": total_secrets},
-        ])
+        source_chart = pd.DataFrame(
+            [
+                {"Fonte": "Semgrep", "Achados": total_semgrep},
+                {"Fonte": "Bandit", "Achados": total_bandit},
+                {"Fonte": "SCA", "Achados": total_sca},
+                {"Fonte": "Secrets", "Achados": total_secrets},
+            ]
+        )
         render_donut_chart(source_chart, "Fonte", "Achados", "Achados por fonte")
 
     executive_context = f"""
@@ -2290,13 +2398,17 @@ Falsos positivos manuais marcados: {count_false_positives()}
 with tab2:
     st.subheader("Análise SAST - Semgrep")
 
-    uploaded_file = st.file_uploader("Enviar arquivo JSON do Semgrep", type=["json"], key="upload_semgrep")
+    uploaded_file = st.file_uploader(
+        "Enviar arquivo JSON do Semgrep", type=["json"], key="upload_semgrep"
+    )
 
     if uploaded_file is not None:
         semgrep_data = json.load(uploaded_file)
         st.success("Arquivo JSON do Semgrep carregado com sucesso.")
     else:
-        st.info("Nenhum arquivo do Semgrep enviado. Envie um JSON para iniciar a análise SAST.")
+        st.info(
+            "Nenhum arquivo do Semgrep enviado. Envie um JSON para iniciar a análise SAST."
+        )
         semgrep_data = semgrep_data_default
 
     semgrep_vulns = get_semgrep_vulnerabilities(semgrep_data)
@@ -2315,21 +2427,25 @@ with tab2:
         col3.metric("Média", medium_count)
         col4.metric("Baixa", low_count)
 
-        tabela = filtered_df[["ID", "Arquivo", "Linha", "Severidade", "Prioridade", "Descrição"]]
+        tabela = filtered_df[
+            ["ID", "Arquivo", "Linha", "Severidade", "Prioridade", "Descrição"]
+        ]
         render_table_as_cards(
             tabela,
             title_key="ID",
             subtitle_keys=["Arquivo", "Linha", "Severidade"],
             badge_key="Prioridade",
             description_key="Descrição",
-            limit=8
+            limit=8,
         )
         render_technical_table("Ver tabela técnica completa", tabela)
 
         csv_data = tabela.to_csv(index=False).encode("utf-8-sig")
         st.download_button("Exportar CSV", csv_data, "semgrep.csv", "text/csv")
 
-        pdf = generate_pdf_report("Relatório Semgrep", f"Total ativo: {len(filtered_df)}", tabela)
+        pdf = generate_pdf_report(
+            "Relatório Semgrep", f"Total ativo: {len(filtered_df)}", tabela
+        )
         st.download_button("Exportar PDF", pdf, "semgrep.pdf", "application/pdf")
 
         st.subheader("Detalhes Técnicos com IA")
@@ -2355,7 +2471,7 @@ with tab2:
             render_empty_state(
                 "Aguardando arquivo do Semgrep.",
                 "Envie o JSON gerado pelo Semgrep para visualizar os achados de análise estática.",
-                "info"
+                "info",
             )
         else:
             st.info("Nenhuma vulnerabilidade encontrada pelo Semgrep.")
@@ -2364,13 +2480,17 @@ with tab2:
 with tab3:
     st.subheader("Análise Python - Bandit")
 
-    uploaded_bandit = st.file_uploader("Enviar arquivo JSON do Bandit", type=["json"], key="upload_bandit")
+    uploaded_bandit = st.file_uploader(
+        "Enviar arquivo JSON do Bandit", type=["json"], key="upload_bandit"
+    )
 
     if uploaded_bandit is not None:
         bandit_data = json.load(uploaded_bandit)
         st.success("Arquivo JSON do Bandit carregado com sucesso.")
     else:
-        st.info("Nenhum arquivo do Bandit enviado. Envie um JSON para iniciar a análise Python.")
+        st.info(
+            "Nenhum arquivo do Bandit enviado. Envie um JSON para iniciar a análise Python."
+        )
         bandit_data = bandit_data_default
 
     bandit_vulns = get_bandit_vulnerabilities(bandit_data)
@@ -2389,21 +2509,33 @@ with tab3:
         col3.metric("Média", medium_count)
         col4.metric("Baixa", low_count)
 
-        tabela = filtered_df[["Teste", "Arquivo", "Linha", "Severidade", "Confiança", "Prioridade", "Descrição"]]
+        tabela = filtered_df[
+            [
+                "Teste",
+                "Arquivo",
+                "Linha",
+                "Severidade",
+                "Confiança",
+                "Prioridade",
+                "Descrição",
+            ]
+        ]
         render_table_as_cards(
             tabela,
             title_key="Teste",
             subtitle_keys=["Arquivo", "Linha", "Severidade", "Confiança"],
             badge_key="Prioridade",
             description_key="Descrição",
-            limit=8
+            limit=8,
         )
         render_technical_table("Ver tabela técnica completa", tabela)
 
         csv_data = tabela.to_csv(index=False).encode("utf-8-sig")
         st.download_button("Exportar CSV", csv_data, "bandit.csv", "text/csv")
 
-        pdf = generate_pdf_report("Relatório Bandit", f"Total ativo: {len(filtered_df)}", tabela)
+        pdf = generate_pdf_report(
+            "Relatório Bandit", f"Total ativo: {len(filtered_df)}", tabela
+        )
         st.download_button("Exportar PDF", pdf, "bandit.pdf", "application/pdf")
 
         st.subheader("Detalhamento com IA")
@@ -2411,7 +2543,9 @@ with tab3:
         for _, row in filtered_df.iterrows():
             unique_id = f"bandit_{row['Teste']}_{row['Arquivo']}_{row['Linha']}"
 
-            with st.expander(f"{row['Teste']} | {row['Arquivo']} | Linha {row['Linha']}"):
+            with st.expander(
+                f"{row['Teste']} | {row['Arquivo']} | Linha {row['Linha']}"
+            ):
                 st.write(f"Severidade: {row['Severidade']}")
                 st.write(f"Confiança: {row['Confiança']}")
                 st.write(f"Prioridade: {row['Prioridade']}")
@@ -2430,7 +2564,7 @@ with tab3:
             render_empty_state(
                 "Aguardando arquivo do Bandit.",
                 "Envie o JSON gerado pelo Bandit para visualizar os achados de segurança Python.",
-                "info"
+                "info",
             )
         else:
             st.success("Nenhum achado encontrado pelo Bandit.")
@@ -2439,13 +2573,17 @@ with tab3:
 with tab4:
     st.subheader("Software Composition Analysis - SCA")
 
-    uploaded_sca = st.file_uploader("Enviar arquivo JSON da SCA", type=["json"], key="upload_sca")
+    uploaded_sca = st.file_uploader(
+        "Enviar arquivo JSON da SCA", type=["json"], key="upload_sca"
+    )
 
     if uploaded_sca is not None:
         sca_data = json.load(uploaded_sca)
         st.success("Arquivo SCA carregado com sucesso.")
     else:
-        st.info("Nenhum arquivo SCA enviado. Envie um JSON para iniciar a análise de dependências.")
+        st.info(
+            "Nenhum arquivo SCA enviado. Envie um JSON para iniciar a análise de dependências."
+        )
         sca_data = sca_data_default
 
     sca_vulns = get_sca_vulnerabilities(sca_data)
@@ -2462,21 +2600,34 @@ with tab4:
         col2.metric("Alta", high_count)
         col3.metric("Média", medium_count)
 
-        tabela = filtered_df[["Biblioteca", "Versão Atual", "CVE", "Prioridade", "Correção Disponível", "Descrição"]]
+        tabela = filtered_df[
+            [
+                "Biblioteca",
+                "Versão Atual",
+                "CVE",
+                "Prioridade",
+                "Correção Disponível",
+                "Descrição",
+            ]
+        ]
         render_table_as_cards(
             tabela,
             title_key="Biblioteca",
             subtitle_keys=["Versão Atual", "CVE", "Correção Disponível"],
             badge_key="Prioridade",
             description_key="Descrição",
-            limit=8
+            limit=8,
         )
         render_technical_table("Ver tabela técnica completa", tabela)
 
         csv_data = tabela.to_csv(index=False).encode("utf-8-sig")
         st.download_button("Exportar CSV", csv_data, "sca.csv", "text/csv")
 
-        pdf = generate_pdf_report("Relatório SCA", f"Total ativo de vulnerabilidades: {len(filtered_df)}", tabela)
+        pdf = generate_pdf_report(
+            "Relatório SCA",
+            f"Total ativo de vulnerabilidades: {len(filtered_df)}",
+            tabela,
+        )
         st.download_button("Exportar PDF", pdf, "sca.pdf", "application/pdf")
 
         st.subheader("Detalhamento com IA")
@@ -2503,7 +2654,7 @@ with tab4:
             render_empty_state(
                 "Aguardando arquivo SCA.",
                 "Envie o JSON da análise de dependências para visualizar CVEs, versões vulneráveis e correções disponíveis.",
-                "info"
+                "info",
             )
         else:
             st.success("Nenhuma vulnerabilidade encontrada na SCA.")
@@ -2516,7 +2667,9 @@ with tab5:
 
     usar_ia_url = st.checkbox("Usar IA para explicar cada achado da URL", value=True)
 
-    limite_ia_url = st.number_input("Limite de achados explicados pela IA", min_value=1, max_value=50, value=10)
+    limite_ia_url = st.number_input(
+        "Limite de achados explicados pela IA", min_value=1, max_value=50, value=10
+    )
 
     if st.button("Analisar URL"):
         if not url.strip():
@@ -2536,23 +2689,38 @@ with tab5:
 
         manual_filtered_url_df = url_df[
             ~url_df.apply(
-                lambda row: is_false_positive(f"url_{row['Tipo']}_{row['Categoria']}_{row['Item']}"),
-                axis=1
+                lambda row: is_false_positive(
+                    f"url_{row['Tipo']}_{row['Categoria']}_{row['Item']}"
+                ),
+                axis=1,
             )
         ]
 
-        active_url_df = manual_filtered_url_df[manual_filtered_url_df["Tipo"] == "Achado Ativo"]
-        improvements_df = manual_filtered_url_df[manual_filtered_url_df["Tipo"] == "Melhoria Recomendada"]
-        controls_ok_df = manual_filtered_url_df[manual_filtered_url_df["Tipo"] == "Controle OK"]
-        auto_fp_df = manual_filtered_url_df[manual_filtered_url_df["Tipo"] == "Falso Positivo Automático"]
+        active_url_df = manual_filtered_url_df[
+            manual_filtered_url_df["Tipo"] == "Achado Ativo"
+        ]
+        improvements_df = manual_filtered_url_df[
+            manual_filtered_url_df["Tipo"] == "Melhoria Recomendada"
+        ]
+        controls_ok_df = manual_filtered_url_df[
+            manual_filtered_url_df["Tipo"] == "Controle OK"
+        ]
+        auto_fp_df = manual_filtered_url_df[
+            manual_filtered_url_df["Tipo"] == "Falso Positivo Automático"
+        ]
 
         high_count = active_url_df[active_url_df["Prioridade"] == "Alta"].shape[0]
         medium_count = active_url_df[active_url_df["Prioridade"] == "Média"].shape[0]
         low_count = active_url_df[active_url_df["Prioridade"] == "Baixa"].shape[0]
-        discovery_count = active_url_df[active_url_df["Categoria"] == "Discovery"].shape[0]
+        discovery_count = active_url_df[
+            active_url_df["Categoria"] == "Discovery"
+        ].shape[0]
         improvement_count = len(improvements_df)
         auto_fp_count = len(auto_fp_df)
         controls_ok_count = len(controls_ok_df)
+
+        # Salva automaticamente no histórico após cada análise
+        auto_save_url_scan_once(result, high_count, medium_count, low_count)
 
         st.subheader("Resumo da Análise")
 
@@ -2563,7 +2731,11 @@ with tab5:
                 "Security Score",
                 result["score"],
                 "Pontuação calculada apenas com achados ativos.",
-                "good" if result["score"] >= 85 else "warning" if result["score"] >= 65 else "critical"
+                "good"
+                if result["score"] >= 85
+                else "warning"
+                if result["score"] >= 65
+                else "critical",
             )
 
         with kpi_col2:
@@ -2571,7 +2743,7 @@ with tab5:
                 "Achados Ativos",
                 len(active_url_df),
                 "Vulnerabilidades ou riscos com evidência real.",
-                "critical" if len(active_url_df) > 0 else "good"
+                "critical" if len(active_url_df) > 0 else "good",
             )
 
         with kpi_col3:
@@ -2579,7 +2751,7 @@ with tab5:
                 "Melhorias",
                 improvement_count,
                 "Itens de hardening recomendados.",
-                "warning" if improvement_count > 0 else "good"
+                "warning" if improvement_count > 0 else "good",
             )
 
         with kpi_col4:
@@ -2587,43 +2759,66 @@ with tab5:
                 "Controles OK",
                 controls_ok_count,
                 "Controles verificados e funcionando.",
-                "good"
+                "good",
             )
 
         kpi_col5, kpi_col6, kpi_col7, kpi_col8 = st.columns(4)
 
         with kpi_col5:
-            render_status_card("Alta", high_count, "Prioridade imediata.", "critical" if high_count > 0 else "good")
+            render_status_card(
+                "Alta",
+                high_count,
+                "Prioridade imediata.",
+                "critical" if high_count > 0 else "good",
+            )
 
         with kpi_col6:
-            render_status_card("Média", medium_count, "Correção planejada.", "warning" if medium_count > 0 else "good")
+            render_status_card(
+                "Média",
+                medium_count,
+                "Correção planejada.",
+                "warning" if medium_count > 0 else "good",
+            )
 
         with kpi_col7:
             render_status_card("Baixa", low_count, "Baixo impacto.", "info")
 
         with kpi_col8:
-            render_status_card("Falsos Positivos", auto_fp_count, "Itens descartados automaticamente.", "info")
+            render_status_card(
+                "Falsos Positivos",
+                auto_fp_count,
+                "Itens descartados automaticamente.",
+                "info",
+            )
 
         chart_col1, chart_col2 = st.columns(2)
 
         with chart_col1:
             st.subheader("Distribuição da Análise de URL")
-            url_distribution_chart = pd.DataFrame([
-                {"Tipo": "Achados Ativos", "Quantidade": len(active_url_df)},
-                {"Tipo": "Melhorias", "Quantidade": improvement_count},
-                {"Tipo": "Controles OK", "Quantidade": controls_ok_count},
-                {"Tipo": "Falsos Positivos", "Quantidade": auto_fp_count},
-            ])
-            render_donut_chart(url_distribution_chart, "Tipo", "Quantidade", "Resultado por tipo")
+            url_distribution_chart = pd.DataFrame(
+                [
+                    {"Tipo": "Achados Ativos", "Quantidade": len(active_url_df)},
+                    {"Tipo": "Melhorias", "Quantidade": improvement_count},
+                    {"Tipo": "Controles OK", "Quantidade": controls_ok_count},
+                    {"Tipo": "Falsos Positivos", "Quantidade": auto_fp_count},
+                ]
+            )
+            render_donut_chart(
+                url_distribution_chart, "Tipo", "Quantidade", "Resultado por tipo"
+            )
 
         with chart_col2:
             st.subheader("Prioridade dos Achados Ativos")
-            url_priority_chart = pd.DataFrame([
-                {"Prioridade": "Alta", "Quantidade": high_count},
-                {"Prioridade": "Média", "Quantidade": medium_count},
-                {"Prioridade": "Baixa", "Quantidade": low_count},
-            ])
-            render_donut_chart(url_priority_chart, "Prioridade", "Quantidade", "Achados por prioridade")
+            url_priority_chart = pd.DataFrame(
+                [
+                    {"Prioridade": "Alta", "Quantidade": high_count},
+                    {"Prioridade": "Média", "Quantidade": medium_count},
+                    {"Prioridade": "Baixa", "Quantidade": low_count},
+                ]
+            )
+            render_donut_chart(
+                url_priority_chart, "Prioridade", "Quantidade", "Achados por prioridade"
+            )
 
         st.subheader("Achados Ativos")
 
@@ -2631,11 +2826,13 @@ with tab5:
             render_empty_state(
                 "Nenhuma vulnerabilidade ativa encontrada.",
                 "A análise não encontrou evidências fortes de exposição, vazamento, debug, stack trace, API sensível ou painel acessível sem autenticação.",
-                "good"
+                "good",
             )
         else:
             render_compact_cards(active_url_df, limit=6)
-            render_technical_table("Ver tabela técnica de achados ativos", active_url_df)
+            render_technical_table(
+                "Ver tabela técnica de achados ativos", active_url_df
+            )
 
         st.subheader("Melhorias Recomendadas")
 
@@ -2643,7 +2840,7 @@ with tab5:
             render_empty_state(
                 "Nenhuma melhoria obrigatória identificada.",
                 "Os principais pontos de hardening analisados não geraram recomendações adicionais.",
-                "good"
+                "good",
             )
         else:
             render_compact_cards(improvements_df, limit=8)
@@ -2655,7 +2852,7 @@ with tab5:
             render_empty_state(
                 "Nenhum controle validado nesta análise.",
                 "A ferramenta não encontrou controles classificados como OK para esta URL.",
-                "info"
+                "info",
             )
         else:
             render_compact_cards(controls_ok_df, limit=8)
@@ -2667,25 +2864,34 @@ with tab5:
             render_empty_state(
                 "Nenhum falso positivo automático identificado.",
                 "Todos os itens encontrados foram classificados como controles, melhorias ou achados ativos.",
-                "info"
+                "info",
             )
         else:
             render_compact_cards(auto_fp_df, limit=8)
             render_technical_table("Ver tabela técnica de falsos positivos", auto_fp_df)
 
         csv_url = active_url_df.to_csv(index=False).encode("utf-8-sig")
-        st.download_button("Exportar CSV - Achados Ativos", csv_url, "url_analysis.csv", "text/csv")
+        st.download_button(
+            "Exportar CSV - Achados Ativos", csv_url, "url_analysis.csv", "text/csv"
+        )
 
         pdf_url = generate_pdf_report(
             "Relatório URL Analysis",
             f"URL analisada: {result['url_final']} | Score: {result['score']} | Classificação: {result['classificacao']}",
-            active_url_df
+            active_url_df,
         )
-        st.download_button("Exportar PDF - Achados Ativos", pdf_url, "url_analysis.pdf", "application/pdf")
+        st.download_button(
+            "Exportar PDF - Achados Ativos",
+            pdf_url,
+            "url_analysis.pdf",
+            "application/pdf",
+        )
 
         st.subheader("Detalhamento com IA")
 
-        detail_df = pd.concat([active_url_df, improvements_df, controls_ok_df], ignore_index=True)
+        detail_df = pd.concat(
+            [active_url_df, improvements_df, controls_ok_df], ignore_index=True
+        )
 
         for index, row in detail_df.iterrows():
             unique_id = f"url_{row['Tipo']}_{row['Categoria']}_{row['Item']}"
@@ -2702,7 +2908,9 @@ with tab5:
             else:
                 ai_result = local_ai_fallback(row["Item"], description_for_ai)
 
-            with st.expander(f"{row['Tipo']} | {row['Categoria']} | {row['Item']} | {row['Status']}"):
+            with st.expander(
+                f"{row['Tipo']} | {row['Categoria']} | {row['Item']} | {row['Status']}"
+            ):
                 st.write(f"Tipo: {row['Tipo']}")
                 st.write(f"Categoria: {row['Categoria']}")
                 st.write(f"Status: {row['Status']}")
@@ -2735,7 +2943,6 @@ with tab5:
         st.caption("A análise atual é salva automaticamente no histórico.")
 
 
-
 with tab6:
     st.subheader("Secrets Scanner")
 
@@ -2745,15 +2952,27 @@ with tab6:
 
     uploaded_secret_files = st.file_uploader(
         "Enviar arquivos de código para análise de segredos",
-        type=["py", "js", "ts", "tsx", "jsx", "json", "env", "txt", "yaml", "yml", "ini", "cfg", "toml"],
+        type=[
+            "py",
+            "js",
+            "ts",
+            "tsx",
+            "jsx",
+            "json",
+            "env",
+            "txt",
+            "yaml",
+            "yml",
+            "ini",
+            "cfg",
+            "toml",
+        ],
         accept_multiple_files=True,
-        key="upload_secret_files"
+        key="upload_secret_files",
     )
 
     uploaded_gitleaks = st.file_uploader(
-        "Enviar relatório JSON do Gitleaks",
-        type=["json"],
-        key="upload_gitleaks_json"
+        "Enviar relatório JSON do Gitleaks", type=["json"], key="upload_gitleaks_json"
     )
 
     secret_findings = []
@@ -2777,7 +2996,7 @@ with tab6:
         render_empty_state(
             "Nenhum segredo analisado.",
             "Envie arquivos do projeto ou um JSON do Gitleaks para iniciar o Secrets Scanner.",
-            "info"
+            "info",
         )
     else:
         high_count, medium_count, low_count = calculate_secret_counts(secret_df)
@@ -2794,20 +3013,24 @@ with tab6:
             subtitle_keys=["Origem", "Arquivo", "Linha"],
             badge_key="Prioridade",
             description_key="Descrição",
-            limit=10
+            limit=10,
         )
 
         render_technical_table("Ver tabela técnica de secrets", secret_df)
 
         csv_secrets = secret_df.to_csv(index=False).encode("utf-8-sig")
-        st.download_button("Exportar CSV - Secrets", csv_secrets, "secrets_scan.csv", "text/csv")
+        st.download_button(
+            "Exportar CSV - Secrets", csv_secrets, "secrets_scan.csv", "text/csv"
+        )
 
         pdf_secrets = generate_pdf_report(
             "Relatório Secrets Scanner",
             f"Total de possíveis segredos encontrados: {len(secret_df)}",
-            secret_df
+            secret_df,
         )
-        st.download_button("Exportar PDF - Secrets", pdf_secrets, "secrets_scan.pdf", "application/pdf")
+        st.download_button(
+            "Exportar PDF - Secrets", pdf_secrets, "secrets_scan.pdf", "application/pdf"
+        )
 
 
 with tab7:
@@ -2819,7 +3042,7 @@ with tab7:
         render_empty_state(
             "Nenhuma superfície de ataque carregada.",
             "Execute uma análise em URL Analysis para visualizar endpoints, controles, melhorias e falsos positivos contextualizados.",
-            "info"
+            "info",
         )
     else:
         attack_df = pd.DataFrame(current_url_result.get("findings", []))
@@ -2828,14 +3051,16 @@ with tab7:
             render_empty_state(
                 "Nenhum dado de superfície encontrado.",
                 "A última análise não retornou endpoints ou controles para exibição.",
-                "info"
+                "info",
             )
         else:
             discovery_df = attack_df[attack_df["Categoria"] == "Discovery"]
             active_df = attack_df[attack_df["Tipo"] == "Achado Ativo"]
             improvements_df = attack_df[attack_df["Tipo"] == "Melhoria Recomendada"]
             controls_df = attack_df[attack_df["Tipo"] == "Controle OK"]
-            false_positive_df = attack_df[attack_df["Tipo"] == "Falso Positivo Automático"]
+            false_positive_df = attack_df[
+                attack_df["Tipo"] == "Falso Positivo Automático"
+            ]
 
             col1, col2, col3, col4 = st.columns(4)
             col1.metric("Endpoints", len(discovery_df))
@@ -2843,20 +3068,24 @@ with tab7:
             col3.metric("Melhorias", len(improvements_df))
             col4.metric("Falsos Positivos", len(false_positive_df))
 
-            distribution_df = pd.DataFrame([
-                {"Tipo": "Achados Ativos", "Quantidade": len(active_df)},
-                {"Tipo": "Melhorias", "Quantidade": len(improvements_df)},
-                {"Tipo": "Controles OK", "Quantidade": len(controls_df)},
-                {"Tipo": "Falsos Positivos", "Quantidade": len(false_positive_df)},
-            ])
-            render_donut_chart(distribution_df, "Tipo", "Quantidade", "Superfície por classificação")
+            distribution_df = pd.DataFrame(
+                [
+                    {"Tipo": "Achados Ativos", "Quantidade": len(active_df)},
+                    {"Tipo": "Melhorias", "Quantidade": len(improvements_df)},
+                    {"Tipo": "Controles OK", "Quantidade": len(controls_df)},
+                    {"Tipo": "Falsos Positivos", "Quantidade": len(false_positive_df)},
+                ]
+            )
+            render_donut_chart(
+                distribution_df, "Tipo", "Quantidade", "Superfície por classificação"
+            )
 
             st.subheader("Endpoints descobertos")
             if discovery_df.empty:
                 render_empty_state(
                     "Nenhum endpoint de discovery identificado.",
                     "A análise não encontrou rotas relevantes no discovery contextual.",
-                    "info"
+                    "info",
                 )
             else:
                 render_table_as_cards(
@@ -2865,9 +3094,11 @@ with tab7:
                     subtitle_keys=["Tipo", "Status", "Prioridade"],
                     badge_key="Tipo",
                     description_key="Descrição",
-                    limit=12
+                    limit=12,
                 )
-                render_technical_table("Ver tabela técnica da superfície de ataque", discovery_df)
+                render_technical_table(
+                    "Ver tabela técnica da superfície de ataque", discovery_df
+                )
 
 
 with tab8:
@@ -2886,13 +3117,15 @@ with tab8:
             st.rerun()
 
     with reset_col2:
-        st.caption("Use o reset para limpar análises antigas e impedir que resultados desatualizados confundam a apresentação.")
+        st.caption(
+            "Use o reset para limpar análises antigas e impedir que resultados desatualizados confundam a apresentação."
+        )
 
     if history_df.empty:
         render_empty_state(
             "Nenhuma análise registrada.",
-            "Execute uma análise de URL e clique em Salvar análise no histórico para acompanhar a evolução.",
-            "info"
+            "Execute uma análise de URL na aba URL Analysis. O histórico é salvo automaticamente.",
+            "info",
         )
     else:
         st.subheader("Últimas análises")
@@ -2902,7 +3135,9 @@ with tab8:
             st.dataframe(history_df, use_container_width=True)
 
         csv_history = history_df.to_csv(index=False).encode("utf-8-sig")
-        st.download_button("Exportar histórico CSV", csv_history, "historico_url.csv", "text/csv")
+        st.download_button(
+            "Exportar histórico CSV", csv_history, "historico_url.csv", "text/csv"
+        )
 
         st.subheader("Evolução do Score")
 
