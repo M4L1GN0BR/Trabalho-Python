@@ -165,6 +165,23 @@ def init_db():
         )
     """)
 
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS scan_history (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            created_at TEXT,
+            total_findings INTEGER,
+            high_count INTEGER,
+            medium_count INTEGER,
+            low_count INTEGER,
+            semgrep_count INTEGER DEFAULT 0,
+            bandit_count INTEGER DEFAULT 0,
+            sca_count INTEGER DEFAULT 0,
+            secrets_count INTEGER DEFAULT 0,
+            score_geral INTEGER DEFAULT 0,
+            classificacao TEXT DEFAULT 'N/A'
+        )
+    """)
+
     conn.commit()
     conn.close()
 
@@ -241,6 +258,129 @@ def clear_url_history():
     cursor.execute("DELETE FROM url_history")
     conn.commit()
     conn.close()
+
+
+def save_scan_history(total, high, medium, low, semgrep_c, bandit_c, sca_c, secrets_c):
+    """Salva resultado de scan completo no histórico global."""
+    score, classificacao = calculate_general_score(high, medium, low)
+    conn = sqlite3.connect(DB_PATH)
+    cursor = conn.cursor()
+    cursor.execute(
+        """
+        INSERT INTO scan_history
+            (created_at, total_findings, high_count, medium_count, low_count,
+             semgrep_count, bandit_count, sca_count, secrets_count,
+             score_geral, classificacao)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    """,
+        (
+            datetime.now().strftime("%Y-%m-%d %H:%M"),
+            total,
+            high,
+            medium,
+            low,
+            semgrep_c,
+            bandit_c,
+            sca_c,
+            secrets_c,
+            score,
+            classificacao,
+        ),
+    )
+    conn.commit()
+    conn.close()
+
+
+def load_scan_history():
+    """Carrega histórico global de scans."""
+    conn = sqlite3.connect(DB_PATH)
+    df = pd.read_sql_query("SELECT * FROM scan_history ORDER BY id DESC", conn)
+    conn.close()
+    return df
+
+
+def correlate_findings(semgrep_df, bandit_df, sca_df, secrets_df, url_findings):
+    """
+    Correlaciona achados entre ferramentas para identificar riscos combinados.
+    Exemplo: endpoint admin exposto + segredo vazado = prioridade máxima.
+    """
+    correlacoes = []
+
+    # 1. Segredos + qualquer achado alto = crítico
+    if not secrets_df.empty and (not semgrep_df.empty or not bandit_df.empty):
+        correlacoes.append(
+            {
+                "risco": "Código com segredos expostos e vulnerabilidades ativas",
+                "evidencias": f"{len(secrets_df)} segredo(s) + {len(semgrep_df) + len(bandit_df)} achado(s) SAST",
+                "prioridade": "Alta",
+                "acao": "Remover segredos do código antes de corrigir vulnerabilidades",
+            }
+        )
+
+    # 2. SCA crítico + segredos = supply chain + credential leak
+    if not sca_df.empty and not secrets_df.empty:
+        sca_altas = (
+            len(sca_df[sca_df["Prioridade"] == "Alta"])
+            if "Prioridade" in sca_df.columns
+            else 0
+        )
+        if sca_altas > 0:
+            correlacoes.append(
+                {
+                    "risco": "Dependências vulneráveis combinadas com credenciais expostas",
+                    "evidencias": f"{sca_altas} CVE(s) crítica(s) + {len(secrets_df)} segredo(s)",
+                    "prioridade": "Alta",
+                    "acao": "Atualizar dependências críticas e rodar Gitleaks no repositório",
+                }
+            )
+
+    # 3. URL: endpoint exposto + segredo = superfície de ataque
+    if url_findings:
+        expostos = [
+            f
+            for f in url_findings
+            if f.get("Status") in ["Expõe", "Expõe recurso"]
+            or f.get("Prioridade") == "Alta"
+        ]
+        if expostos and not secrets_df.empty:
+            correlacoes.append(
+                {
+                    "risco": "Endpoint exposto com credenciais no repositório",
+                    "evidencias": f"{len(expostos)} endpoint(s) exposto(s) + {len(secrets_df)} segredo(s)",
+                    "prioridade": "Crítica",
+                    "acao": "Revisar acesso ao endpoint e rodar scan de segredos imediatamente",
+                }
+            )
+
+    # 4. Muitos achados de várias fontes = postura fraca
+    fontes_com_achados = sum(
+        [
+            not semgrep_df.empty,
+            not bandit_df.empty,
+            not sca_df.empty,
+            not secrets_df.empty,
+            bool(url_findings),
+        ]
+    )
+    if fontes_com_achados >= 3:
+        total = (
+            len(semgrep_df)
+            + len(bandit_df)
+            + len(sca_df)
+            + len(secrets_df)
+            + len(url_findings)
+        )
+        if total > 10:
+            correlacoes.append(
+                {
+                    "risco": "Postura de segurança fragilizada em múltiplas camadas",
+                    "evidencias": f"{fontes_com_achados} fontes com achados - {total} no total",
+                    "prioridade": "Alta",
+                    "acao": "Estabelecer programa de remediação por prioridade: segredos > SAST > SCA",
+                }
+            )
+
+    return correlacoes
 
 
 def clean_text(text):
@@ -2188,6 +2328,70 @@ def render_enterprise_sidebar():
     )
     st.sidebar.caption("Governança, evidências, priorização e postura de segurança.")
 
+    # ── Upload consolidado ──
+    st.sidebar.markdown("---")
+    st.sidebar.markdown("### 📦 Upload Consolidado")
+    st.sidebar.caption(
+        "Envie o aspm-report.json gerado pelo orquestrador para preencher todas as abas de uma vez."
+    )
+    consolidated = st.sidebar.file_uploader(
+        "Selecionar aspm-report.json",
+        type=["json"],
+        key="upload_consolidated",
+        label_visibility="collapsed",
+    )
+
+    if consolidated is not None:
+        try:
+            report = json.load(consolidated)
+            st.session_state["aspm_report"] = report
+
+            # Extrai dados de cada ferramenta
+            semgrep_data = report.get("semgrep", {"results": []})
+            bandit_data = report.get("bandit", {"results": []})
+            sca_data = report.get("sca", {"dependencies": []})
+            secrets_data = report.get("secrets", {}).get("gitleaks", [])
+
+            # Salva no session_state pra uso nas abas
+            st.session_state["consolidated_semgrep"] = semgrep_data
+            st.session_state["consolidated_bandit"] = bandit_data
+            st.session_state["consolidated_sca"] = sca_data
+            st.session_state["consolidated_secrets"] = secrets_data
+
+            meta = report.get("scan_metadata", {})
+            summary = meta.get("summary", {})
+            n = summary.get("total_findings", 0)
+
+            # Salva no histórico global
+            semgrep_count = len(semgrep_data.get("results", []))
+            bandit_count = len(bandit_data.get("results", []))
+            sca_count = sum(
+                len(d.get("vulns", [])) for d in sca_data.get("dependencies", [])
+            )
+            secrets_count = len(secrets_data)
+            high = summary.get("by_severity", {}).get("Alta", 0)
+            medium = summary.get("by_severity", {}).get("Média", 0)
+            low = summary.get("by_severity", {}).get("Baixa", 0)
+
+            save_scan_history(
+                n,
+                high,
+                medium,
+                low,
+                semgrep_count,
+                bandit_count,
+                sca_count,
+                secrets_count,
+            )
+
+            st.sidebar.success(f"✅ Relatório carregado: {n} achados")
+        except Exception as e:
+            st.sidebar.error(f"Erro ao ler relatório: {e}")
+
+    # Mostra indicador se já carregou
+    if "aspm_report" in st.session_state:
+        st.sidebar.info("📊 Dados consolidados disponíveis")
+
 
 apply_enterprise_theme()
 render_enterprise_header()
@@ -2217,10 +2421,10 @@ tab1, tab2, tab3, tab4, tab5, tab6, tab7, tab8 = st.tabs(
 
 # Os dados das ferramentas começam vazios para evitar que resultados antigos
 # apareçam automaticamente quando o dashboard é aberto.
-# Envie o JSON de cada ferramenta para popular as abas.
-semgrep_data_default = {"results": []}
-bandit_data_default = {"results": []}
-sca_data_default = {"dependencies": []}
+# Se um relatório consolidado foi enviado via sidebar, usa ele.
+semgrep_data_default = st.session_state.get("consolidated_semgrep", {"results": []})
+bandit_data_default = st.session_state.get("consolidated_bandit", {"results": []})
+sca_data_default = st.session_state.get("consolidated_sca", {"dependencies": []})
 
 semgrep_df_default = pd.DataFrame(get_semgrep_vulnerabilities(semgrep_data_default))
 bandit_df_default = pd.DataFrame(get_bandit_vulnerabilities(bandit_data_default))
@@ -2373,6 +2577,63 @@ with tab1:
             ]
         )
         render_donut_chart(source_chart, "Fonte", "Achados", "Achados por fonte")
+
+    # ── Correlação de Riscos ──
+    st.subheader("🔄 Correlação de Riscos (ASPM)")
+    url_findings_list = []
+    if current_url_result:
+        url_findings_list = current_url_result.get("findings", [])
+
+    correlacoes = correlate_findings(
+        semgrep_active_df,
+        bandit_active_df,
+        sca_active_df,
+        secrets_df_default,
+        url_findings_list,
+    )
+
+    if correlacoes:
+        for c in correlacoes:
+            cor_priority = c["prioridade"]
+            cor_color = {
+                "Crítica": "#ef4444",
+                "Alta": "#f59e0b",
+                "Média": "#38bdf8",
+                "Baixa": "#22c55e",
+            }.get(cor_priority, "#cbd5e1")
+            st.markdown(
+                f"""
+                <div class="enterprise-card" style="border-left: 4px solid {cor_color}; margin-bottom: 0.75rem;">
+                    <div style="display: flex; justify-content: space-between; align-items: center;">
+                        <div>
+                            <div style="font-weight: 950; color: #f8fafc;">{c["risco"]}</div>
+                            <div style="color: #94a3b8; font-size: 0.84rem; margin-top: 0.3rem;">{c["evidencias"]}</div>
+                            <div style="color: #cbd5e1; font-size: 0.84rem; margin-top: 0.3rem;">→ {c["acao"]}</div>
+                        </div>
+                        <div style="color: {cor_color}; font-weight: 950; font-size: 0.9rem;">{cor_priority}</div>
+                    </div>
+                </div>
+                """,
+                unsafe_allow_html=True,
+            )
+    else:
+        st.markdown(
+            "<div class='enterprise-muted'>Nenhuma correlação significativa identificada entre as fontes.</div>",
+            unsafe_allow_html=True,
+        )
+
+    # ── Histórico Global ──
+    with st.expander("📊 Histórico global de scans"):
+        scan_hist_df = load_scan_history()
+        if not scan_hist_df.empty:
+            st.dataframe(scan_hist_df.head(10), use_container_width=True)
+            if len(scan_hist_df) > 1:
+                st.subheader("Evolução do Score")
+                evo_df = scan_hist_df.sort_values("id")[["created_at", "score_geral"]]
+                evo_df = evo_df.set_index("created_at")
+                st.line_chart(evo_df)
+        else:
+            st.caption("Nenhum scan registrado. Use o upload consolidado na sidebar.")
 
     executive_context = f"""
 Score geral: {general_score}

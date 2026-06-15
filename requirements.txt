@@ -1,4 +1,5 @@
 semgrep
+bandit
 streamlit
 requests
 python-dotenv
@@ -6,6 +7,6 @@ pandas
 python-whois
 tldextract
 reportlab
-safety
+pip-audit
 plotly>=5.20.0
 altair>=5.0.0

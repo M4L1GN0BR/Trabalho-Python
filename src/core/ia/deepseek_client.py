@@ -99,10 +99,20 @@ def call_deepseek(
         return data["choices"][0]["message"]["content"].strip()
 
     except requests.exceptions.Timeout:
-        return ""
+        return (
+            "Erro ao consultar a IA: timeout de conexão. Verifique internet e firewall."
+        )
 
-    except requests.exceptions.HTTPError:
-        return ""
+    except requests.exceptions.HTTPError as e:
+        status = e.response.status_code if e.response is not None else "desconhecido"
+        if status == 401:
+            return "Erro ao consultar a IA: chave da API inválida. Verifique DEEPSEEK_API_KEY no .env."
+        elif status == 429:
+            return "Erro ao consultar a IA: limite de requisições excedido. Aguarde e tente novamente."
+        elif status == 500:
+            return "Erro ao consultar a IA: servidor do DeepSeek retornou erro interno. Tente novamente mais tarde."
+        else:
+            return f"Erro ao consultar a IA: HTTP {status}. Verifique API key, modelo e conexão."
 
-    except Exception:
-        return ""
+    except Exception as e:
+        return f"Erro ao consultar a IA: {type(e).__name__}. Verifique conexão e configuração."

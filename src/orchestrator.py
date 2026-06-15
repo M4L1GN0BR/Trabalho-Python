@@ -4,7 +4,7 @@ Orquestrador de scans ASPM.
 Coordena a execução de múltiplas ferramentas de segurança:
 - Semgrep (SAST)
 - Bandit (segurança Python)
-- Safety (SCA - dependências)
+- pip-audit (SCA - dependências)
 - Gitleaks / TruffleHog (segredos)
 - Trivy (container + IaC)
 
@@ -14,6 +14,7 @@ Uso:
 
 import argparse
 import json
+import os
 import subprocess
 import sys
 import time
@@ -25,20 +26,40 @@ from pathlib import Path
 # ──────────────────────────────────────────────
 
 
-def run(cmd, cwd=None, timeout=120):
+def run(cmd, cwd=None, timeout=120, capture_stderr=True):
     """
     Executa um comando e retorna (stdout, stderr, returncode).
     Se o comando não existir ou exceder o timeout, retorna (None, None, -1).
+
+    Define PYTHONIOENCODING para evitar erro de encoding no Windows.
+    capture_stderr=False ignora stderr (útil para ferramentas com erro de encoding).
     """
     try:
-        result = subprocess.run(
-            cmd,
+        env = os.environ.copy()
+        env["PYTHONIOENCODING"] = "utf-8"
+        env["SEMGREP_SEND_TELEMETRY"] = "off"
+        env["SEMGREP_TELEMETRY"] = "off"
+
+        kwargs = dict(
+            args=cmd,
             cwd=cwd,
-            capture_output=True,
-            text=True,
             timeout=timeout,
+            env=env,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
         )
-        return result.stdout, result.stderr, result.returncode
+
+        if capture_stderr:
+            kwargs["capture_output"] = True
+            result = subprocess.run(**kwargs)
+            return result.stdout, result.stderr, result.returncode
+        else:
+            kwargs["stdout"] = subprocess.PIPE
+            kwargs["stderr"] = subprocess.DEVNULL
+            result = subprocess.run(**kwargs)
+            return result.stdout, "", result.returncode
+
     except FileNotFoundError:
         return None, f"Comando não encontrado: {cmd[0]}", -1
     except subprocess.TimeoutExpired:
@@ -63,42 +84,85 @@ def check_tool(name, cmd):
 
 
 def scan_semgrep(repo_path):
-    """Roda Semgrep com regras auto e retorna dados."""
+    """Roda Semgrep. No Windows, pode falhar por bug de encoding — tratamos com grace."""
     print("\n🔍 Semgrep (SAST)...")
     if not check_tool("Semgrep", "semgrep"):
         return {"results": []}
 
-    stdout, stderr, code = run(
-        ["semgrep", "--config=auto", "--json", str(repo_path)],
-        timeout=300,
-    )
-    if not stdout:
-        print(f"  ⚠ Semgrep falhou: {stderr[:200] if stderr else 'sem saída'}")
-        return {"results": []}
+    out_path = Path(repo_path) / ".aspm_semgrep_output.json"
 
     try:
-        data = json.loads(stdout)
-        n = len(data.get("results", []))
-        print(f"  ✓ {n} achados encontrados")
-        return data
-    except json.JSONDecodeError:
-        print("  ⚠ Resposta do Semgrep não é JSON válido")
+        env = os.environ.copy()
+        env["PYTHONIOENCODING"] = "utf-8"
+
+        result = subprocess.run(
+            [
+                "semgrep",
+                "--config=auto",
+                "--json",
+                "--output",
+                str(out_path),
+                "--quiet",
+                "--exclude",
+                ".venv",
+                "--exclude",
+                "venv",
+                "--exclude",
+                "__pycache__",
+                str(repo_path),
+            ],
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            timeout=300,
+            env=env,
+        )
+
+        if out_path.exists() and out_path.stat().st_size > 0:
+            with open(out_path, "r", encoding="utf-8", errors="replace") as f:
+                content = f.read()
+            out_path.unlink(missing_ok=True)
+
+            if content.strip():
+                data = json.loads(content)
+                n = len(data.get("results", []))
+                print(f"  ✓ {n} achados encontrados")
+                return data
+
+        # Se chegou aqui, Semgrep falhou silenciosamente
+        print(
+            f"  ⚠ Semgrep falhou (código {result.returncode}). "
+            "Bug conhecido no Windows: 'charmap' codec. "
+            "O scan continua com as demais ferramentas."
+        )
+        return {"results": []}
+
+    except Exception as e:
+        print(f"  ⚠ Semgrep não disponível: {e}")
         return {"results": []}
 
 
 def scan_bandit(repo_path):
-    """Roda Bandit em arquivos Python."""
+    """Roda Bandit apenas em arquivos .py fora de .venv."""
     print("\n🔍 Bandit (segurança Python)...")
     if not check_tool("Bandit", "bandit"):
         return {"results": []}
 
-    py_files = list(Path(repo_path).rglob("*.py"))
+    # Lista arquivos .py fora de .venv/venv/__pycache__
+    py_files = [
+        str(f)
+        for f in Path(repo_path).rglob("*.py")
+        if ".venv" not in f.parts
+        and "venv" not in f.parts
+        and "__pycache__" not in f.parts
+    ]
     if not py_files:
-        print("  ℹ Nenhum arquivo .py encontrado")
+        print("  ℹ Nenhum arquivo .py encontrado (fora de .venv)")
         return {"results": []}
 
+    print(f"  ℹ {len(py_files)} arquivos .py para escanear")
+
     stdout, stderr, code = run(
-        ["bandit", "-r", str(repo_path), "-f", "json"],
+        ["bandit", "-f", "json"] + py_files,
         timeout=120,
     )
     if not stdout:
@@ -115,60 +179,25 @@ def scan_bandit(repo_path):
         return {"results": []}
 
 
-def scan_safety():
-    """Roda Safety check para SCA."""
-    print("\n🔍 Safety (SCA - dependências)...")
-    if not check_tool("Safety", "safety"):
+def scan_pip_audit():
+    """Roda pip-audit para SCA (gratuito, sem autenticação)."""
+    print("\n🔍 pip-audit (SCA - dependências)...")
+    if not check_tool("pip-audit", "pip-audit"):
         return {"dependencies": []}
 
-    stdout, stderr, code = run(["safety", "check", "--json"], timeout=120)
+    stdout, stderr, code = run(["pip-audit", "--format", "json"], timeout=120)
+
     if not stdout:
-        print(f"  ⚠ Safety falhou: {stderr[:200] if stderr else 'sem saída'}")
+        print(f"  ⚠ pip-audit falhou")
         return {"dependencies": []}
 
     try:
-        raw = json.loads(stdout)
-        # Safety retorna uma lista plana. Convertemos para o formato sca.json
-        # que o dashboard espera: { "dependencies": [ { "name": ..., "vulns": [...] } ] }
-        deps_map = {}
-        for vuln in raw:
-            if len(vuln) >= 5:
-                name = (
-                    vuln[0]
-                    if isinstance(vuln, list)
-                    else vuln.get("package_name", "desconhecido")
-                )
-                if name not in deps_map:
-                    deps_map[name] = {
-                        "name": name,
-                        "version": vuln[1]
-                        if isinstance(vuln, list)
-                        else vuln.get("installed_version", ""),
-                        "vulns": [],
-                    }
-                deps_map[name]["vulns"].append(
-                    {
-                        "id": vuln[2]
-                        if isinstance(vuln, list)
-                        else vuln.get("CVE", ""),
-                        "description": vuln[3]
-                        if isinstance(vuln, list)
-                        else vuln.get("advisory", ""),
-                        "fix_versions": [
-                            vuln[4]
-                            if isinstance(vuln, list)
-                            else vuln.get("fixed_version", "")
-                        ],
-                    }
-                )
-
-        dependencies = list(deps_map.values())
-        n = sum(len(d["vulns"]) for d in dependencies)
-        print(f"  ✓ {n} vulnerabilidades em {len(dependencies)} dependências")
-        return {"dependencies": dependencies}
-
-    except (json.JSONDecodeError, IndexError, TypeError) as e:
-        print(f"  ⚠ Erro ao processar Safety: {e}")
+        data = json.loads(stdout)
+        total = sum(len(d.get("vulns", [])) for d in data.get("dependencies", []))
+        print(f"  ✓ {total} vulnerabilidades encontradas")
+        return data
+    except json.JSONDecodeError as e:
+        print(f"  ⚠ Erro ao processar pip-audit: {e}")
         return {"dependencies": []}
 
 
@@ -349,7 +378,7 @@ def run_all(repo_path, output_dir="./data", skip_trivy=False):
     # ── Scans ──
     semgrep_data = scan_semgrep(repo_path)
     bandit_data = scan_bandit(repo_path)
-    safety_data = scan_safety()
+    safety_data = scan_pip_audit()
     gitleaks_data = scan_gitleaks(repo_path)
     trivy_data = {"results": []}
     if not skip_trivy:

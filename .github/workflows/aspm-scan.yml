@@ -44,7 +44,7 @@ jobs:
 
       - name: Instalar ferramentas de segurança
         run: |
-          pip install semgrep bandit safety
+          pip install semgrep bandit pip-audit
           # Trivy (via script oficial)
           curl -sfL https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/install.sh | sh
           sudo mv ./bin/trivy /usr/local/bin/trivy
@@ -57,7 +57,7 @@ jobs:
         run: |
           semgrep --version
           bandit --version
-          safety --version
+          pip-audit --version
           trivy --version
           gitleaks --version
 
