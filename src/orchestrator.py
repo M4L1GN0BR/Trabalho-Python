@@ -72,9 +72,9 @@ def check_tool(name, cmd):
         [cmd, "--version"] if cmd != "safety" else [cmd, "--version"], timeout=10
     )
     if stdout:
-        print(f"  ✓ {name}: {stdout.splitlines()[0].strip()}")
+        print(f"  [OK] {name}: {stdout.splitlines()[0].strip()}")
         return True
-    print(f"  ✗ {name}: não instalado")
+    print(f"  [X] {name}: não instalado")
     return False
 
 
@@ -85,7 +85,7 @@ def check_tool(name, cmd):
 
 def scan_semgrep(repo_path):
     """Roda Semgrep. No Windows, pode falhar por bug de encoding — tratamos com grace."""
-    print("\n🔍 Semgrep (SAST)...")
+    print("\nSemgrep (SAST)...")
     if not check_tool("Semgrep", "semgrep"):
         return {"results": []}
 
@@ -125,25 +125,25 @@ def scan_semgrep(repo_path):
             if content.strip():
                 data = json.loads(content)
                 n = len(data.get("results", []))
-                print(f"  ✓ {n} achados encontrados")
+                print(f"  [OK] {n} achados encontrados")
                 return data
 
         # Se chegou aqui, Semgrep falhou silenciosamente
         print(
-            f"  ⚠ Semgrep falhou (código {result.returncode}). "
+            f"  [!] Semgrep falhou (código {result.returncode}). "
             "Bug conhecido no Windows: 'charmap' codec. "
             "O scan continua com as demais ferramentas."
         )
         return {"results": []}
 
     except Exception as e:
-        print(f"  ⚠ Semgrep não disponível: {e}")
+        print(f"  [!] Semgrep não disponível: {e}")
         return {"results": []}
 
 
 def scan_bandit(repo_path):
     """Roda Bandit apenas em arquivos .py fora de .venv."""
-    print("\n🔍 Bandit (segurança Python)...")
+    print("\nBandit (segurança Python)...")
     if not check_tool("Bandit", "bandit"):
         return {"results": []}
 
@@ -166,44 +166,44 @@ def scan_bandit(repo_path):
         timeout=120,
     )
     if not stdout:
-        print(f"  ⚠ Bandit falhou: {stderr[:200] if stderr else 'sem saída'}")
+        print(f"  [!] Bandit falhou: {stderr[:200] if stderr else 'sem saída'}")
         return {"results": []}
 
     try:
         data = json.loads(stdout)
         n = len(data.get("results", []))
-        print(f"  ✓ {n} achados encontrados")
+        print(f"  [OK] {n} achados encontrados")
         return data
     except json.JSONDecodeError:
-        print("  ⚠ Resposta do Bandit não é JSON válido")
+        print("  [!] Resposta do Bandit não é JSON válido")
         return {"results": []}
 
 
 def scan_pip_audit():
     """Roda pip-audit para SCA (gratuito, sem autenticação)."""
-    print("\n🔍 pip-audit (SCA - dependências)...")
+    print("\npip-audit (SCA - dependências)...")
     if not check_tool("pip-audit", "pip-audit"):
         return {"dependencies": []}
 
     stdout, stderr, code = run(["pip-audit", "--format", "json"], timeout=120)
 
     if not stdout:
-        print(f"  ⚠ pip-audit falhou")
+        print(f"  [!] pip-audit falhou")
         return {"dependencies": []}
 
     try:
         data = json.loads(stdout)
         total = sum(len(d.get("vulns", [])) for d in data.get("dependencies", []))
-        print(f"  ✓ {total} vulnerabilidades encontradas")
+        print(f"  [OK] {total} vulnerabilidades encontradas")
         return data
     except json.JSONDecodeError as e:
-        print(f"  ⚠ Erro ao processar pip-audit: {e}")
+        print(f"  [!] Erro ao processar pip-audit: {e}")
         return {"dependencies": []}
 
 
 def scan_gitleaks(repo_path):
     """Roda Gitleaks para detecção de segredos."""
-    print("\n🔍 Gitleaks (segredos)...")
+    print("\nGitleaks (segredos)...")
     if not check_tool("Gitleaks", "gitleaks"):
         return []
 
@@ -224,7 +224,7 @@ def scan_gitleaks(repo_path):
         try:
             data = json.loads(stdout)
             if isinstance(data, list):
-                print(f"  ✓ {len(data)} segredos encontrados")
+                print(f"  [OK] {len(data)} segredos encontrados")
                 return data
         except json.JSONDecodeError:
             pass
@@ -235,7 +235,7 @@ def scan_gitleaks(repo_path):
 
 def scan_trivy_fs(repo_path):
     """Roda Trivy para escanear filesystem (IaC + dependências)."""
-    print("\n🔍 Trivy (IaC + filesystem)...")
+    print("\nTrivy (IaC + filesystem)...")
     if not check_tool("Trivy", "trivy"):
         return {"results": []}
 
@@ -252,16 +252,16 @@ def scan_trivy_fs(repo_path):
         timeout=300,
     )
     if not stdout:
-        print(f"  ⚠ Trivy falhou: {stderr[:200] if stderr else 'sem saída'}")
+        print(f"  [!] Trivy falhou: {stderr[:200] if stderr else 'sem saída'}")
         return {"results": []}
 
     try:
         data = json.loads(stdout)
         n = len(data.get("Results", []))
-        print(f"  ✓ {n} categorias analisadas")
+        print(f"  [OK] {n} categorias analisadas")
         return data
     except json.JSONDecodeError:
-        print("  ⚠ Resposta do Trivy não é JSON válido")
+        print("  [!] Resposta do Trivy não é JSON válido")
         return {"results": []}
 
 
@@ -337,7 +337,7 @@ def save_json(path, data):
     path.parent.mkdir(parents=True, exist_ok=True)
     with open(path, "w", encoding="utf-8") as f:
         json.dump(data, f, indent=2, ensure_ascii=False)
-    print(f"  💾 Salvo: {path}")
+    print(f"  Salvo: {path}")
     return path
 
 
@@ -363,7 +363,7 @@ def run_all(repo_path, output_dir="./data", skip_trivy=False):
     output_dir = Path(output_dir).resolve()
 
     if not repo_path.is_dir():
-        print(f"❌ Diretório não encontrado: {repo_path}")
+        print(f"[ERRO] Diretório não encontrado: {repo_path}")
         sys.exit(1)
 
     bar = "=" * 60
@@ -410,7 +410,7 @@ def run_all(repo_path, output_dir="./data", skip_trivy=False):
 
     bar = "=" * 60
     print(f"\n{bar}")
-    print("  ✅ Scan concluído!")
+    print("  [CONCLUÍDO] Scan concluído!")
     print(bar)
 
     return report

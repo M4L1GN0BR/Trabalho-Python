@@ -10,6 +10,11 @@
 6. [Cliente DeepSeek Compartilhado](#6-cliente-deepseek-compartilhado)
 7. [Correção do Histórico de URL](#7-correção-do-histórico-de-url)
 8. [Estrutura de Pacotes](#8-estrutura-de-pacotes)
+9. [Refatoração do Dashboard em Módulos](#9-refatoração-do-dashboard-em-módulos)
+10. [Dados de Demonstração](#10-dados-de-demonstração)
+11. [Classificação de API corrigida (evidência real)](#11-classificação-de-api-corrigida-evidência-real)
+12. [Mapeamento OWASP Top 10](#12-mapeamento-owasp-top-10)
+13. [WAF, Cookies e JWT Analyzer (análise passiva)](#13-waf-cookies-e-jwt-analyzer-análise-passiva)
 
 ---
 
@@ -165,6 +170,112 @@ Adicionados arquivos `__init__.py` para transformar `src` em um pacote Python pr
 ```python
 from src.core.ia.deepseek_client import call_deepseek
 ```
+
+---
+
+## 9. Refatoração do Dashboard em Módulos
+
+**Arquivo:** `dashboard/app.py` (REDUZIDO de ~3.400 para ~110 linhas)
+
+O `app.py` concentrava banco, IA, PDF, parsers, CSS e renderização de todas as abas. Agora cada responsabilidade tem seu módulo:
+
+```
+dashboard/
+├── app.py        # ponto de entrada (autenticação + criação das abas)
+├── theme.py      # CSS dark corporativo (login + dashboard)
+├── ui.py         # componentes visuais: cards, estados vazios, donuts, sidebar
+├── db.py         # SQLite: init_db, histórico de URL/scans, ativos
+├── state.py      # estado de sessão: falsos positivos, secrets, auto-save
+├── ai.py         # IA DeepSeek + fallback local (ask_ai, resumo executivo)
+├── parsers.py    # parsers Semgrep/Bandit/SCA para DataFrame
+├── reports.py    # relatórios PDF (técnico e executivo)
+├── session.py    # helpers de sessão/perfil (can, usuário logado)
+└── tabs.py       # corpo de cada aba do dashboard
+```
+
+Novos módulos em `src/core/`:
+
+- `src/core/text.py` — `clean_text()` e `load_json()` (utilidades puras)
+- `src/core/correlation.py` — `correlate_findings()` (correlação entre ferramentas)
+- `src/core/risk_engine.py` — ganhou `calculate_general_score()` (score simples do histórico)
+
+O comportamento do dashboard foi preservado (mesmas abas, mesmos fluxos). Também foi corrigido um aviso no Resumo Executivo: a coluna "Achados ativos" da tabela de fontes misturava números com texto ("Score atual: X"), o que gerava erro de serialização no Arrow/Streamlit — agora a coluna é numérica e o score da URL continua visível nos cards.
+
+**Teste de fumaça:** `test_dashboard_smoke.py` (NOVO) valida via `streamlit.testing.v1.AppTest` o boot, o login e a renderização das abas com dados consolidados.
+
+---
+
+## 10. Dados de Demonstração
+
+**Arquivo:** `src/generate_demo_data.py` (NOVO) + comando `demo` no `src/main.py`
+
+Para a apresentação, quando as ferramentas reais (Semgrep/Gitleaks/Trivy) não estão instaladas ou falham no Windows, o projeto gera dados simulados no formato exato do dashboard:
+
+```bash
+python src/main.py demo          # gera dados e ABRE o dashboard com eles carregados
+python src/main.py demo -o ./x   # gera em ./x e abre
+python src/main.py demo --seed 42  # reproduz a mesma execução
+```
+
+Gera `semgrep.json`, `bandit.json`, `sca.json`, `gitleaks.json` e `aspm-report.json` (upload consolidado na sidebar). Os achados são realistas (regras reais do Semgrep, testes do Bandit, CVEs reais com fix_versions, segredos mascarados), marcados como `demo_data: true` no relatório.
+
+A cada execução o gerador **sorteia achados diferentes** (quantidade, regras, arquivos e linhas) para parecer um scan real. O parâmetro `--seed` reproduz exatamente a mesma execução — útil para ensaiar a apresentação com um resultado específico.
+
+O comando `demo` agora **sobe o dashboard automaticamente** e carrega o `aspm-report.json` na sessão (modo demonstração via `ASPM_AUTO_DEMO=1`): após o login `admin/admin`, os gráficos, cards e o Risk Engine já aparecem preenchidos, sem upload manual.
+
+Escolhemos um **gerador determinístico em Python** em vez de pedir para a IA gerar os JSONs: garante JSON sempre válido, funciona offline e evita alucinações de CVEs. A IA do dashboard continua explicando cada achado normalmente.
+
+---
+
+## 11. Classificação de API corrigida (evidência real)
+
+**Arquivo:** `src/core/url_analysis.py`
+
+Antes, qualquer `/api` que respondesse com JSON viraria "Achado Ativo / Média" só por "aparência de API" — mesmo sendo uma API pública legítima (ex: o frontend do site que consome os próprios dados). Agora a classificação segue a filosofia evidence-based do projeto:
+
+| Cenário | Classificação |
+|---|---|
+| `/api` com JSON público, sem dado sensível | **Melhoria Recomendada** / Baixa (hardening) |
+| Swagger UI, OpenAPI, GraphQL Playground reais | **Achado Ativo** / Média |
+| API com credencial/token/dado sensível no corpo | **Achado Ativo** / Alta |
+| Resposta sem indício técnico ou sensível | **Falso Positivo Automático** |
+
+A mudança alinha a ferramenta com o que a IA já recomendava (expor `/api` sem evidência = hardening, não vulnerabilidade) e evita inflar o score com endpoints públicos legítimos.
+
+---
+
+## 12. Mapeamento OWASP Top 10
+
+**Arquivo:** `src/core/owasp.py` (NOVO)
+
+Cada evidência normalizada (Evidence Engine) agora recebe uma categoria do **OWASP Top 10:2025**:
+
+- Classificação por padrões de texto, IDs de regra (Semgrep check_id / Bandit test_name), ferramenta e CVEs
+- `build_evidence_store()` já retorna evidências enriquecidas (`owasp_id`, `owasp_label`, `owasp_name`)
+- Riscos prioritários do Risk Engine exibem a categoria OWASP
+- Resumo Executivo ganhou os cards "Categorias OWASP Top 10" (top 5 por frequência)
+- Relatório executivo em PDF ganhou a seção "Categorias OWASP Top 10"
+- Sem dependências externas; o mapeamento é automático e aproximado (revisão manual recomendada)
+
+Exemplos de mapeamento no demo atual: CVEs → `A06:2025` · segredos/cripto fraca → `A02:2025` · SQLi/XSS → `A03:2025` · pickle/yaml → `A08:2025` · path traversal → `A01:2025`.
+
+---
+
+## 13. WAF, Cookies e JWT Analyzer (análise passiva)
+
+**Arquivos:** `src/core/url_analysis.py`, `src/core/secrets.py`, `src/generate_demo_data.py`
+
+Três análises defensivas adicionadas (nenhuma exploração — apenas leitura de respostas e decodificação):
+
+| Recurso | O que faz | Classificação |
+|---|---|---|
+| **Detecção de WAF/CDN** | Reconhece Cloudflare, Akamai, Incapsula, Sucuri, F5 BIG-IP, AWS WAF etc. via headers (`cf-ray`, `x-sucuri-id`, `Server`...) | WAF presente = Controle OK · ausente = Melhoria Recomendada |
+| **Análise de cookies** | Verifica `Secure`, `HttpOnly` e `SameSite` de cada `Set-Cookie` | Flags OK = Controle OK · flag faltando = Melhoria Recomendada |
+| **JWT analyzer** | Decodifica header/payload do JWT (sem validar assinatura) | Sinaliza `alg=none`, sem `exp`, token expirado e claims `role`/`admin` |
+
+O demo (`src/generate_demo_data.py`) agora gera um JWT estruturado (`alg=HS256`, payload com `role=admin` e sem `exp`) para a análise aparecer na apresentação. A aba Attack Surface ganhou a categoria **Cookies** e a seção "Headers de Segurança e Cookies".
+
+Validação real: `betano.bet.br` → WAF **Cloudflare** detectado (Controle OK) e cookie `_cfuvid` com Secure/HttpOnly/SameSite (Controle OK).
 
 ---
 

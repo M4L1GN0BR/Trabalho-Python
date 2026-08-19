@@ -1,0 +1,27 @@
+{
+  "typeCheckingMode": "off",
+  "venvPath": ".",
+  "venv": ".venv",
+  "diagnosticSeverityOverrides": {
+    "reportMissingImports": "error",
+    "reportUndefinedVariable": "error",
+    "reportMissingModuleSource": "none",
+    "reportGeneralTypeIssues": "none",
+    "reportOptionalMemberAccess": "none",
+    "reportAttributeAccessIssue": "none",
+    "reportArgumentType": "none",
+    "reportAssignmentType": "none",
+    "reportUnknownMemberType": "none",
+    "reportUnknownParameterType": "none",
+    "reportUnknownVariableType": "none",
+    "reportUnknownArgumentType": "none",
+    "reportCallIssue": "none",
+    "reportReturnType": "none",
+    "reportMissingTypeStubs": "none",
+    "reportMissingParameterType": "none",
+    "reportUnusedExpression": "none",
+    "reportUnusedImport": "warning",
+    "reportImplicitStringConcatenation": "none",
+    "reportMissingParameterType": "none"
+  }
+}

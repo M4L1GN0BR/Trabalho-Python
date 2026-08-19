@@ -1,0 +1,40 @@
+{
+  "results": [
+    {
+      "test_name": "B608",
+      "filename": "src/repository/user_repo.py",
+      "line_number": 316,
+      "issue_severity": "HIGH",
+      "issue_confidence": "HIGH",
+      "issue_text": "Possible SQL injection vector through string-based query construction. Prefer parameterized queries.",
+      "code": "    query = f\"SELECT * FROM users WHERE id = {user_id}\""
+    },
+    {
+      "test_name": "B501",
+      "filename": "src/app/routes.py",
+      "line_number": 295,
+      "issue_severity": "HIGH",
+      "issue_confidence": "MEDIUM",
+      "issue_text": "Requests call with verify=False disables TLS certificate verification.",
+      "code": "    resp = requests.get(url, verify=False)"
+    },
+    {
+      "test_name": "B105",
+      "filename": "src/app/proxy.py",
+      "line_number": 374,
+      "issue_severity": "MEDIUM",
+      "issue_confidence": "HIGH",
+      "issue_text": "Possible hardcoded password. Store credentials in environment variables or a secrets manager.",
+      "code": "    DB_PASSWORD = \"admin123\""
+    },
+    {
+      "test_name": "B112",
+      "filename": "src/auth/tokens.py",
+      "line_number": 367,
+      "issue_severity": "LOW",
+      "issue_confidence": "MEDIUM",
+      "issue_text": "Try, Except, Continue detected. Consider logging the exception instead of silently continuing.",
+      "code": "        except Exception:\n            continue"
+    }
+  ]
+}

@@ -1,0 +1,16 @@
+[
+  {
+    "RuleID": "npm-token",
+    "Description": "NPM Access Token",
+    "File": "src/auth/tokens.py",
+    "StartLine": 83,
+    "Secret": "npm_43xKmTecQoXsf2o3gyrDO1xkxwnQrS7RPeMO"
+  },
+  {
+    "RuleID": "jwt-token",
+    "Description": "JWT Token",
+    "File": "src/app/utils.py",
+    "StartLine": 72,
+    "Secret": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJ1c2VyXzEwNDIiLCJyb2xlIjoiYWRtaW4iLCJpYXQiOjE3ODcxNjgzNjV9.UpkDyr7OSJoRu1XXdo0cZuzren68K4TunPFz46PDjqi"
+  }
+]

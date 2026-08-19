@@ -5,10 +5,12 @@ Uso:
     python src/main.py scan --repo ./meu-projeto
     python src/main.py scan --repo ./meu-projeto --output ./data --skip-trivy
     python src/main.py scan --repo ./meu-projeto --ai  (enriquece com IA)
+    python src/main.py demo             (gera dados simulados p/ apresentação)
 """
 
 import argparse
 import json
+import os
 from pathlib import Path
 
 
@@ -22,18 +24,28 @@ def cmd_scan(args):
         skip_trivy=args.skip_trivy,
     )
 
-    # Se --ai, enriquece com DeepSeek
+    # Se --ai, enriquece com DeepSeek usando análise profunda com contexto do código
     if args.ai:
-        print("\n🧠 Enriqueciendo achados com IA...")
+        print("\nAnálise profunda com IA (contexto de código)...")
         try:
             from core.ia.ai_helper import explain_vulnerability
+            from core.context import (
+                extract_code_snippet,
+                extract_function_context,
+                format_context_for_prompt,
+            )
 
+            repo = Path(args.repo).resolve()
             total = 0
+
             # Semgrep
             for vuln in report.get("semgrep", {}).get("results", []):
                 check_id = vuln.get("check_id", "")
                 message = vuln.get("extra", {}).get("message", "")
-                ia = explain_vulnerability(check_id, message)
+                fpath = vuln.get("path", "")
+                fline = vuln.get("start", {}).get("line")
+
+                ia = explain_vulnerability(check_id, message, fpath, fline)
                 vuln["_ia"] = ia
                 total += 1
 
@@ -41,32 +53,58 @@ def cmd_scan(args):
             for vuln in report.get("bandit", {}).get("results", []):
                 test_name = vuln.get("test_name", "")
                 text = vuln.get("issue_text", "")
-                ia = explain_vulnerability(test_name, text)
+                fpath = vuln.get("filename", "")
+                fline = vuln.get("line_number")
+
+                ia = explain_vulnerability(test_name, text, fpath, fline)
                 vuln["_ia"] = ia
                 total += 1
 
-            print(f"  ✓ {total} achados enriquecidos com IA")
+            print(f"  [OK] {total} achados analisados em profundidade com IA")
             # Re-salva o report com IA
             report_path = Path(args.output) / "aspm-report.json"
             with open(report_path, "w", encoding="utf-8") as f:
                 json.dump(report, f, indent=2, ensure_ascii=False)
-            print(f"  💾 Relatório atualizado: {report_path}")
+            print(f"  Salvo: {report_path}")
 
         except Exception as e:
-            print(f"  ⚠ Erro ao enriquecer com IA: {e}")
+            print(f"  [ERRO] Erro ao enriquecer com IA: {e}")
 
     return report
 
 
-def cmd_dashboard(args):
-    """Inicia o dashboard Streamlit."""
+def _launch_dashboard():
+    """Inicia o dashboard Streamlit (subprocess)."""
     import subprocess
     import sys as _sys
 
     dashboard_path = Path(__file__).resolve().parent.parent / "dashboard" / "app.py"
     cmd = [_sys.executable, "-m", "streamlit", "run", str(dashboard_path)]
-    print(f"🚀 Iniciando dashboard: {' '.join(cmd)}")
+    print(f"Iniciando dashboard: {' '.join(cmd)}")
     subprocess.run(cmd)
+
+
+def cmd_demo(args):
+    """
+    Gera dados de demonstração (simulados) e abre o dashboard já com
+    os achados carregados e os gráficos prontos.
+    """
+    from generate_demo_data import generate_demo_data
+
+    out = generate_demo_data(output_dir=args.output, seed=args.seed)
+    print(f"\nDados de demonstração gerados em: {out.resolve()}")
+
+    # Sinaliza para o dashboard carregar o relatório automaticamente
+    os.environ["ASPM_AUTO_DEMO"] = "1"
+    os.environ["ASPM_DEMO_REPORT"] = str((out / "aspm-report.json").resolve())
+
+    print("\nAbrindo o dashboard com os dados de demonstração...")
+    _launch_dashboard()
+
+
+def cmd_dashboard(args):
+    """Inicia o dashboard Streamlit."""
+    _launch_dashboard()
 
 
 def main():
@@ -77,6 +115,7 @@ def main():
 Exemplos:
   python src/main.py scan --repo ./meu-projeto
   python src/main.py scan --repo ./meu-projeto --ai
+  python src/main.py demo --seed 42   (gera dados e abre o dashboard com eles)
   python src/main.py dashboard
         """,
     )
@@ -98,12 +137,28 @@ Exemplos:
     # ── dashboard ──
     subparsers.add_parser("dashboard", help="Inicia o dashboard Streamlit")
 
+    # ── demo ──
+    demo_parser = subparsers.add_parser(
+        "demo", help="Gera dados de demonstração (simulados) para o dashboard"
+    )
+    demo_parser.add_argument(
+        "--output", "-o", default="./data/demo", help="Diretório de saída"
+    )
+    demo_parser.add_argument(
+        "--seed",
+        type=int,
+        default=None,
+        help="Seed para reproduzir a mesma execução (mesma seed = mesmos achados)",
+    )
+
     args = parser.parse_args()
 
     if args.command == "scan":
         cmd_scan(args)
     elif args.command == "dashboard":
         cmd_dashboard(args)
+    elif args.command == "demo":
+        cmd_demo(args)
     else:
         parser.print_help()
 

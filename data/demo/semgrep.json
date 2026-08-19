@@ -1,0 +1,56 @@
+{
+  "results": [
+    {
+      "check_id": "python.lang.security.audit.eval-usage",
+      "path": "src/app/utils.py",
+      "start": {
+        "line": 122
+      },
+      "extra": {
+        "severity": "ERROR",
+        "confidence": "HIGH",
+        "message": "Data from request may be passed to eval(). Audit the use of eval to ensure untrusted data is never evaluated.",
+        "lines": "    result = eval(request.args.get('expr', '0'))"
+      }
+    },
+    {
+      "check_id": "python.lang.security.audit.yaml-load",
+      "path": "src/auth/tokens.py",
+      "start": {
+        "line": 60
+      },
+      "extra": {
+        "severity": "WARNING",
+        "confidence": "MEDIUM",
+        "message": "yaml.load without Loader can execute arbitrary code. Use yaml.safe_load.",
+        "lines": "    config = yaml.load(request.data)"
+      }
+    },
+    {
+      "check_id": "python.lang.security.audit.jwt-hardcode-secret",
+      "path": "src/app/views.py",
+      "start": {
+        "line": 287
+      },
+      "extra": {
+        "severity": "ERROR",
+        "confidence": "HIGH",
+        "message": "Hardcoded JWT secret detected. Rotate the secret and store it in environment variables.",
+        "lines": "    payload = jwt.encode(data, \"my_super_secret_key\", algorithm=\"HS256\")"
+      }
+    },
+    {
+      "check_id": "python.lang.security.audit.path-traversal",
+      "path": "src/services/payment.py",
+      "start": {
+        "line": 310
+      },
+      "extra": {
+        "severity": "ERROR",
+        "confidence": "MEDIUM",
+        "message": "Path traversal: file path built from user input without normalization.",
+        "lines": "    data = open(os.path.join(UPLOAD_DIR, filename)).read()"
+      }
+    }
+  ]
+}

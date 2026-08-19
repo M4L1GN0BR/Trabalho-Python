@@ -1,0 +1,117 @@
+{
+  "dependencies": [
+    {
+      "name": "requests",
+      "version": "2.28.1",
+      "vulns": [
+        {
+          "id": "CVE-2024-35195",
+          "description": "Requests can leak cookies across domains during redirects in certain scenarios.",
+          "fix_versions": [
+            "2.32.0"
+          ]
+        },
+        {
+          "id": "CVE-2023-32681",
+          "description": "Requests vulnerable to information disclosure via improper handling of proxy credentials.",
+          "fix_versions": [
+            "2.31.0"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "cryptography",
+      "version": "39.0.0",
+      "vulns": [
+        {
+          "id": "CVE-2023-0286",
+          "description": "OpenSSL X.400 address type confusion leading to possible man-in-the-middle.",
+          "fix_versions": [
+            "39.0.1"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "jinja2",
+      "version": "3.1.1",
+      "vulns": [
+        {
+          "id": "CVE-2024-22195",
+          "description": "Jinja2 xmlattr filter vulnerable to cross-site scripting via attribute name injection.",
+          "fix_versions": [
+            "3.1.3"
+          ]
+        },
+        {
+          "id": "CVE-2024-34064",
+          "description": "Jinja2 html attribute filter vulnerable to cross-site scripting via attribute escaping bypass.",
+          "fix_versions": [
+            "3.1.4"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "urllib3",
+      "version": "1.26.14",
+      "vulns": [
+        {
+          "id": "CVE-2023-43804",
+          "description": "urllib3 vulnerable to cookie header injection when redirecting with special characters.",
+          "fix_versions": [
+            "1.26.17"
+          ]
+        },
+        {
+          "id": "CVE-2023-45803",
+          "description": "urllib3 request body desynchronization when using HTTP/1.1 keep-alive.",
+          "fix_versions": [
+            "1.26.18"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "flask",
+      "version": "2.2.2",
+      "vulns": [
+        {
+          "id": "CVE-2024-24762",
+          "description": "Flask vulnerable to resource exhaustion through large multipart form uploads.",
+          "fix_versions": [
+            "3.0.3"
+          ]
+        },
+        {
+          "id": "CVE-2023-30861",
+          "description": "Flask vulnerable to denial of service via specially crafted JSON request data.",
+          "fix_versions": [
+            "2.2.5"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "werkzeug",
+      "version": "2.2.2",
+      "vulns": [
+        {
+          "id": "CVE-2023-25577",
+          "description": "Werkzeug vulnerable to denial of service via multipart form data with many parts.",
+          "fix_versions": [
+            "2.2.3"
+          ]
+        },
+        {
+          "id": "CVE-2024-34069",
+          "description": "Werkzeug development server vulnerable to denial of service via crafted requests.",
+          "fix_versions": [
+            "3.0.3"
+          ]
+        }
+      ]
+    }
+  ]
+}

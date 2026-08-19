@@ -1,0 +1,257 @@
+{
+  "scan_metadata": {
+    "timestamp": "2026-08-19T16:39:25.923495",
+    "repo_path": "./demo-app",
+    "duration_seconds": 0,
+    "tools": {
+      "semgrep": true,
+      "bandit": true,
+      "safety": false,
+      "gitleaks": true,
+      "trivy": false
+    },
+    "summary": {
+      "total_findings": 21,
+      "by_severity": {
+        "Alta": 18,
+        "Média": 2,
+        "Baixa": 1
+      },
+      "demo_data": true
+    }
+  },
+  "semgrep": {
+    "results": [
+      {
+        "check_id": "python.lang.security.audit.eval-usage",
+        "path": "src/app/utils.py",
+        "start": {
+          "line": 122
+        },
+        "extra": {
+          "severity": "ERROR",
+          "confidence": "HIGH",
+          "message": "Data from request may be passed to eval(). Audit the use of eval to ensure untrusted data is never evaluated.",
+          "lines": "    result = eval(request.args.get('expr', '0'))"
+        }
+      },
+      {
+        "check_id": "python.lang.security.audit.yaml-load",
+        "path": "src/auth/tokens.py",
+        "start": {
+          "line": 60
+        },
+        "extra": {
+          "severity": "WARNING",
+          "confidence": "MEDIUM",
+          "message": "yaml.load without Loader can execute arbitrary code. Use yaml.safe_load.",
+          "lines": "    config = yaml.load(request.data)"
+        }
+      },
+      {
+        "check_id": "python.lang.security.audit.jwt-hardcode-secret",
+        "path": "src/app/views.py",
+        "start": {
+          "line": 287
+        },
+        "extra": {
+          "severity": "ERROR",
+          "confidence": "HIGH",
+          "message": "Hardcoded JWT secret detected. Rotate the secret and store it in environment variables.",
+          "lines": "    payload = jwt.encode(data, \"my_super_secret_key\", algorithm=\"HS256\")"
+        }
+      },
+      {
+        "check_id": "python.lang.security.audit.path-traversal",
+        "path": "src/services/payment.py",
+        "start": {
+          "line": 310
+        },
+        "extra": {
+          "severity": "ERROR",
+          "confidence": "MEDIUM",
+          "message": "Path traversal: file path built from user input without normalization.",
+          "lines": "    data = open(os.path.join(UPLOAD_DIR, filename)).read()"
+        }
+      }
+    ]
+  },
+  "bandit": {
+    "results": [
+      {
+        "test_name": "B608",
+        "filename": "src/repository/user_repo.py",
+        "line_number": 316,
+        "issue_severity": "HIGH",
+        "issue_confidence": "HIGH",
+        "issue_text": "Possible SQL injection vector through string-based query construction. Prefer parameterized queries.",
+        "code": "    query = f\"SELECT * FROM users WHERE id = {user_id}\""
+      },
+      {
+        "test_name": "B501",
+        "filename": "src/app/routes.py",
+        "line_number": 295,
+        "issue_severity": "HIGH",
+        "issue_confidence": "MEDIUM",
+        "issue_text": "Requests call with verify=False disables TLS certificate verification.",
+        "code": "    resp = requests.get(url, verify=False)"
+      },
+      {
+        "test_name": "B105",
+        "filename": "src/app/proxy.py",
+        "line_number": 374,
+        "issue_severity": "MEDIUM",
+        "issue_confidence": "HIGH",
+        "issue_text": "Possible hardcoded password. Store credentials in environment variables or a secrets manager.",
+        "code": "    DB_PASSWORD = \"admin123\""
+      },
+      {
+        "test_name": "B112",
+        "filename": "src/auth/tokens.py",
+        "line_number": 367,
+        "issue_severity": "LOW",
+        "issue_confidence": "MEDIUM",
+        "issue_text": "Try, Except, Continue detected. Consider logging the exception instead of silently continuing.",
+        "code": "        except Exception:\n            continue"
+      }
+    ]
+  },
+  "sca": {
+    "dependencies": [
+      {
+        "name": "requests",
+        "version": "2.28.1",
+        "vulns": [
+          {
+            "id": "CVE-2024-35195",
+            "description": "Requests can leak cookies across domains during redirects in certain scenarios.",
+            "fix_versions": [
+              "2.32.0"
+            ]
+          },
+          {
+            "id": "CVE-2023-32681",
+            "description": "Requests vulnerable to information disclosure via improper handling of proxy credentials.",
+            "fix_versions": [
+              "2.31.0"
+            ]
+          }
+        ]
+      },
+      {
+        "name": "cryptography",
+        "version": "39.0.0",
+        "vulns": [
+          {
+            "id": "CVE-2023-0286",
+            "description": "OpenSSL X.400 address type confusion leading to possible man-in-the-middle.",
+            "fix_versions": [
+              "39.0.1"
+            ]
+          }
+        ]
+      },
+      {
+        "name": "jinja2",
+        "version": "3.1.1",
+        "vulns": [
+          {
+            "id": "CVE-2024-22195",
+            "description": "Jinja2 xmlattr filter vulnerable to cross-site scripting via attribute name injection.",
+            "fix_versions": [
+              "3.1.3"
+            ]
+          },
+          {
+            "id": "CVE-2024-34064",
+            "description": "Jinja2 html attribute filter vulnerable to cross-site scripting via attribute escaping bypass.",
+            "fix_versions": [
+              "3.1.4"
+            ]
+          }
+        ]
+      },
+      {
+        "name": "urllib3",
+        "version": "1.26.14",
+        "vulns": [
+          {
+            "id": "CVE-2023-43804",
+            "description": "urllib3 vulnerable to cookie header injection when redirecting with special characters.",
+            "fix_versions": [
+              "1.26.17"
+            ]
+          },
+          {
+            "id": "CVE-2023-45803",
+            "description": "urllib3 request body desynchronization when using HTTP/1.1 keep-alive.",
+            "fix_versions": [
+              "1.26.18"
+            ]
+          }
+        ]
+      },
+      {
+        "name": "flask",
+        "version": "2.2.2",
+        "vulns": [
+          {
+            "id": "CVE-2024-24762",
+            "description": "Flask vulnerable to resource exhaustion through large multipart form uploads.",
+            "fix_versions": [
+              "3.0.3"
+            ]
+          },
+          {
+            "id": "CVE-2023-30861",
+            "description": "Flask vulnerable to denial of service via specially crafted JSON request data.",
+            "fix_versions": [
+              "2.2.5"
+            ]
+          }
+        ]
+      },
+      {
+        "name": "werkzeug",
+        "version": "2.2.2",
+        "vulns": [
+          {
+            "id": "CVE-2023-25577",
+            "description": "Werkzeug vulnerable to denial of service via multipart form data with many parts.",
+            "fix_versions": [
+              "2.2.3"
+            ]
+          },
+          {
+            "id": "CVE-2024-34069",
+            "description": "Werkzeug development server vulnerable to denial of service via crafted requests.",
+            "fix_versions": [
+              "3.0.3"
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  "secrets": {
+    "gitleaks": [
+      {
+        "RuleID": "npm-token",
+        "Description": "NPM Access Token",
+        "File": "src/auth/tokens.py",
+        "StartLine": 83,
+        "Secret": "npm_43xKmTecQoXsf2o3gyrDO1xkxwnQrS7RPeMO"
+      },
+      {
+        "RuleID": "jwt-token",
+        "Description": "JWT Token",
+        "File": "src/app/utils.py",
+        "StartLine": 72,
+        "Secret": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJ1c2VyXzEwNDIiLCJyb2xlIjoiYWRtaW4iLCJpYXQiOjE3ODcxNjgzNjV9.UpkDyr7OSJoRu1XXdo0cZuzren68K4TunPFz46PDjqi"
+      }
+    ]
+  },
+  "trivy": {
+    "Results": []
+  }
+}
