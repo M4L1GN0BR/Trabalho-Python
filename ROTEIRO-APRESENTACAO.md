@@ -124,16 +124,16 @@ Na aba **URL Analysis**:
 
 ```bash
 # Se tiver DVWA/Juice Shop rodando local, exemplo:
-python src/main.py attack --url http://localhost:8080 --modules recon,idor,fuzz,rate,cors,methods,traversal,redirect
+python src/main.py attack --url http://localhost:8080 --modules recon,idor,fuzz,rate,cors,methods,traversal,redirect,sqli,xss,creds
 ```
 
 Ou mostre a aba **Testes Ofensivos (Lab)**:
 1. Marque **"Confirmo que tenho autorização"**
 2. URL do alvo de laboratório
-3. Módulos: os 8 disponíveis (Recon, IDOR, API Fuzzing, Rate Limit, **CORS**, **HTTP Methods/TRACE**, **Path Traversal**, **Open Redirect**)
+3. Módulos: os **11 disponíveis** (Recon, IDOR, API Fuzzing, Rate Limit, CORS, HTTP Methods/TRACE, Path Traversal, Open Redirect, **SQLi detecção**, **XSS detecção**, **Credenciais comuns**)
 4. **Executar testes** → mostre os cards
 
-**O que falar:** *"Oito módulos de teste ativo com trava de autorização — uso exclusivo em laboratório. Ferramentas legítimas, como Burp/ZAP, com limites e sem ações destrutivas: CORS, TRACE, path traversal e open redirect são os clássicos que o OWASP Top 10 cobre."*
+**O que falar:** *"Onze módulos de teste com trava de autorização — uso exclusivo em laboratório. Ferramentas legítimas, como Burp/ZAP, com limites e sem ações destrutivas. SQLi e XSS são módulos de DETECÇÃO: não extraem dados nem roubam cookies — só sinalizam evidência para validação manual.*"
 
 > Se não tiver alvo de lab, **pule esta etapa** — não é obrigatória.
 

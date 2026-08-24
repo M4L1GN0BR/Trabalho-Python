@@ -1382,8 +1382,8 @@ def render_offensive_tab():
 
     mods = st.multiselect(
         "Módulos",
-        ["recon", "idor", "fuzz", "rate", "cors", "methods", "traversal", "redirect"],
-        default=["recon", "idor", "fuzz", "rate", "cors", "methods", "traversal", "redirect"],
+        ["recon", "idor", "fuzz", "rate", "cors", "methods", "traversal", "redirect", "sqli", "xss", "creds"],
+        default=["recon", "idor", "fuzz", "rate", "cors", "methods", "traversal", "redirect", "sqli", "xss", "creds"],
         format_func=lambda m: {
             "recon": "Recon Ativo (portas)",
             "idor": "IDOR / Enumeração de IDs",
@@ -1393,11 +1393,15 @@ def render_offensive_tab():
             "methods": "HTTP Methods / TRACE",
             "traversal": "Path Traversal (LFI)",
             "redirect": "Open Redirect",
+            "sqli": "SQL Injection (detecção)",
+            "xss": "XSS Refletido (detecção)",
+            "creds": "Credenciais comuns (LAB)",
         }[m],
     )
 
     id_param = st.text_input("Parâmetro de ID (IDOR)", value="id")
     traversal_param = st.text_input("Parâmetro de arquivo (Path Traversal)", value="file")
+    web_param = st.text_input("Parâmetro de teste (SQLi / XSS)", value="id")
 
     if st.button(
         "Executar testes",
@@ -1406,7 +1410,11 @@ def render_offensive_tab():
     ):
         with st.spinner("Executando testes (limitados e sem ações destrutivas)..."):
             st.session_state.attack_results = run_attack_modules(
-                url, modules=mods, id_param=id_param, traversal_param=traversal_param
+                url,
+                modules=mods,
+                id_param=id_param,
+                traversal_param=traversal_param,
+                web_param=web_param,
             )
 
     result = st.session_state.get("attack_results")
@@ -1453,6 +1461,9 @@ def render_offensive_tab():
         ("methods", "HTTP Methods"),
         ("traversal", "Path Traversal"),
         ("redirect", "Open Redirect"),
+        ("sqli", "SQL Injection"),
+        ("xss", "XSS Refletido"),
+        ("creds", "Credenciais comuns"),
     ]:
         if mod in result["module_results"]:
             with st.expander(f"{label} — detalhes"):

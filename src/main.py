@@ -89,6 +89,9 @@ def cmd_attack(args):
         modules=modules,
         id_param=args.id_param,
         traversal_param=args.traversal_param,
+        web_param=args.web_param,
+        user_field=args.user_field,
+        pass_field=args.pass_field,
     )
 
     print(f"\nAlvo: {res['target']}")
@@ -193,7 +196,7 @@ Exemplos:
     attack_parser.add_argument(
         "--modules",
         default=None,
-        help="Módulos: recon,idor,fuzz,rate,cors,methods,traversal,redirect (padrão: todos)",
+        help="Módulos: recon,idor,fuzz,rate,cors,methods,traversal,redirect,sqli,xss,creds (padrão: todos)",
     )
     attack_parser.add_argument(
         "--id-param", default="id", help="Parâmetro de ID usado no teste de IDOR"
@@ -202,6 +205,21 @@ Exemplos:
         "--traversal-param",
         default="file",
         help="Parâmetro usado no teste de Path Traversal",
+    )
+    attack_parser.add_argument(
+        "--web-param",
+        default="id",
+        help="Parâmetro usado nos testes de SQLi e XSS",
+    )
+    attack_parser.add_argument(
+        "--user-field",
+        default="username",
+        help="Campo de usuário no endpoint de login (creds)",
+    )
+    attack_parser.add_argument(
+        "--pass-field",
+        default="password",
+        help="Campo de senha no endpoint de login (creds)",
     )
     attack_parser.add_argument(
         "--output", "-o", default="./data", help="Diretório de saída"

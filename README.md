@@ -198,11 +198,13 @@ Módulos de teste ativo (Recon Ativo, IDOR, API Fuzzing, Rate Limit) — **apena
 python src/main.py attack --url https://alvo-autorizado.com
 # só alguns módulos:
 python src/main.py attack --url https://alvo-autorizado.com --modules recon,fuzz,cors,redirect
-# parâmetro de ID diferente (IDOR) e de arquivo (Path Traversal):
-python src/main.py attack --url https://alvo-autorizado.com/api/user/{id} --id-param id --traversal-param file
+# parâmetros específicos (IDOR / traversal / SQLi-XSS):
+python src/main.py attack --url https://alvo-autorizado.com --id-param id --traversal-param file --web-param id
+# endpoint de login para o teste de credenciais:
+python src/main.py attack --url https://lab/login.php --modules creds
 ```
 
-Módulos disponíveis: `recon, idor, fuzz, rate, cors, methods, traversal, redirect`. Gera `data/attack-results.json` com os achados.
+Módulos disponíveis: `recon, idor, fuzz, rate, cors, methods, traversal, redirect, sqli, xss, creds`. Gera `data/attack-results.json` com os achados.
 
 **Pelo dashboard:** aba **Testes Ofensivos (Lab)** → confirme a autorização no checkbox (obrigatório) → informe a URL e os módulos → **Executar testes**.
 
@@ -303,6 +305,9 @@ Módulos de teste ativo em aba própria (**Testes Ofensivos**), **somente para u
 - **HTTP Methods**: lista métodos via `OPTIONS` e testa `TRACE` (XST)
 - **Path Traversal**: testa payloads de LFI (`../../etc/passwd`) no parâmetro informado
 - **Open Redirect**: testa parâmetros comuns de redirecionamento (`url`, `next`, `returnUrl`...)
+- **SQL Injection (detecção)**: error-based, boolean e time-based — **sem extração de dados**
+- **XSS Refletido (detecção)**: marcadores inofensivos verificando reflexo sem encoding
+- **Credenciais comuns (LAB)**: 8 combinações padrão com delay em endpoint de login
 
 A execução exige **confirmação explícita de autorização** e é limitada (poucas requisições, timeouts, sem ações destrutivas). Também disponível via CLI: `python src/main.py attack --url <alvo>` — resultados salvos em `data/attack-results.json`.
 
@@ -368,7 +373,8 @@ A API será documentada com Swagger/OpenAPI e permitirá integração CI/CD.
 - [ ] Notificações via Slack/Email
 - [ ] API REST com Swagger/OpenAPI
 - [ ] Ampliar testes automatizados com `pytest`
-- [ ] Módulos de exploração avançada (SQLi/XSS/credential stuffing) — apenas em laboratório, com decisão do grupo
+- [ ] Exploração avançada de SQLi (extração de dados / dump) — somente laboratório
+- [ ] Integração com ferramentas externas (Nuclei, Nikto)
 
 ---
 

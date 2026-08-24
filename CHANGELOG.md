@@ -18,6 +18,7 @@
 14. [Subdomínios, Crawler e Memória de IA](#14-subdomínios-crawler-e-memória-de-ia)
 15. [Testes Ofensivos (Laboratório Autorizado)](#15-testes-ofensivos-laboratório-autorizado)
 16. [Novos módulos ofensivos (CORS, HTTP Methods, Path Traversal, Open Redirect)](#16-novos-módulos-ofensivos-cors-http-methods-path-traversal-open-redirect)
+17. [SQLi, XSS e Credenciais (detecção, laboratório)](#17-sqli-xss-e-credenciais-detecção-laboratório)
 
 ---
 
@@ -337,6 +338,24 @@ O pacote de testes ofensivos agora tem **8 módulos** (antes 4):
 CLI: `python src/main.py attack --url <alvo> --modules recon,idor,fuzz,rate,cors,methods,traversal,redirect --traversal-param file`. Dashboard: aba Testes Ofensivos com os 8 módulos selecionáveis. Validado contra servidor local (autorizado) — os 4 novos módulos geraram os achados esperados.
 
 Exploração avançada (SQLi/XSS ativos, credential stuffing) permanece como evolução futura documentada no README, aguardando decisão do grupo.
+
+---
+
+## 17. SQLi, XSS e Credenciais (detecção, laboratório)
+
+**Arquivos:** `src/core/attack/sqli_detector.py`, `src/core/attack/xss_detector.py`, `src/core/attack/credential_stuffer.py` (NOVOS)
+
+Após decisão do grupo, os módulos restantes foram implementados **na forma de detecção**, sem exploração destrutiva:
+
+| Módulo | O que faz | Limites |
+|---|---|---|
+| **SQL Injection (detecção)** | Error-based (sinais de erro de banco), boolean (diferencial true/false) e time-based (1 payload `SLEEP(3)`) | **sem extração de dados** (sem union/dump), poucos payloads |
+| **XSS Refletido (detecção)** | Marcadores inofensivos (`ASPMXSSMARKER`) verificando reflexo sem encoding | **sem roubo de cookie**, sem execução real |
+| **Credenciais comuns (LAB)** | 8 combinações padrão com delay (0.4s) em endpoint de login | lista fixa pequena, sem contornar bloqueio/CAPTCHA |
+
+CLI: `python src/main.py attack --url <alvo> --modules ...,sqli,xss,creds --web-param id --user-field username --pass-field password`. Dashboard: aba Testes Ofensivos com os **11 módulos**. Validado contra servidor local (autorizado): SQLi (erro de banco), XSS (reflexo sem encoding) e credenciais (admin/admin) geraram os achados esperados.
+
+Exploração avançada de SQLi (extração/dump) e integração com ferramentas externas (Nuclei/Nikto) permanecem como evolução futura.
 
 ---
 

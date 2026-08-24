@@ -18,6 +18,9 @@ from .cors_checker import cors_check, cors_findings
 from .http_methods import http_methods_test, methods_findings
 from .path_traversal import path_traversal_test, traversal_findings
 from .open_redirect import open_redirect_test, redirect_findings
+from .sqli_detector import sqli_detection_test, sqli_findings
+from .xss_detector import xss_detection_test, xss_findings
+from .credential_stuffer import credential_stuff_test, creds_findings
 
 MODULE_LABELS = {
     "recon": "Recon Ativo (portas)",
@@ -28,6 +31,9 @@ MODULE_LABELS = {
     "methods": "HTTP Methods / TRACE",
     "traversal": "Path Traversal (LFI)",
     "redirect": "Open Redirect",
+    "sqli": "SQL Injection (detecção)",
+    "xss": "XSS Refletido (detecção)",
+    "creds": "Credenciais comuns (LAB)",
 }
 
 
@@ -44,21 +50,35 @@ def _finding(category, item, status, priority, description, tipo, evidencias=Non
     }
 
 
-def run_attack_modules(url, modules=None, id_param="id", traversal_param="file", timeout=5):
+def run_attack_modules(
+    url,
+    modules=None,
+    id_param="id",
+    traversal_param="file",
+    web_param="id",
+    user_field="username",
+    pass_field="password",
+    timeout=5,
+):
     """
     Executa os módulos ofensivos selecionados contra um alvo autorizado.
 
     Parâmetros
     ----------
     url : str
-        URL do alvo (ex: https://alvo-autorizado.com).
+        URL do alvo (ex: https://alvo-autorizado.com). Para o módulo `creds`,
+        informe o endpoint de login.
     modules : list, optional
         Subconjunto de ["recon", "idor", "fuzz", "rate", "cors", "methods",
-        "traversal", "redirect"]. Padrão: todos.
+        "traversal", "redirect", "sqli", "xss", "creds"]. Padrão: todos.
     id_param : str
         Nome do parâmetro de ID usado no teste de IDOR.
     traversal_param : str
         Nome do parâmetro usado no teste de path traversal.
+    web_param : str
+        Nome do parâmetro usado nos testes de SQLi e XSS.
+    user_field / pass_field : str
+        Nomes dos campos de usuário/senha no endpoint de login (creds).
     timeout : int
         Timeout base das requisições.
 
@@ -112,6 +132,23 @@ def run_attack_modules(url, modules=None, id_param="id", traversal_param="file",
         redirect = open_redirect_test(url)
         results["redirect"] = redirect
         findings.extend(redirect_findings(redirect))
+
+    if "sqli" in modules:
+        sqli = sqli_detection_test(url, param=web_param)
+        results["sqli"] = sqli
+        findings.extend(sqli_findings(sqli))
+
+    if "xss" in modules:
+        xss = xss_detection_test(url, param=web_param)
+        results["xss"] = xss
+        findings.extend(xss_findings(xss))
+
+    if "creds" in modules:
+        creds = credential_stuff_test(
+            url, user_field=user_field, pass_field=pass_field
+        )
+        results["creds"] = creds
+        findings.extend(creds_findings(creds))
 
     return {
         "target": url,
