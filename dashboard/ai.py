@@ -185,14 +185,33 @@ CORRECAO: <ação específica e priorizada, 1 frase>
         risco = extract_section(text, ["RISCO"])
         correcao = extract_section(text, ["CORRECAO", "CORREÇÃO"])
 
-        return {
+        result = {
             "explicacao": explicacao or fallback["explicacao"],
             "risco": risco or fallback["risco"],
             "correcao": correcao or fallback["correcao"],
         }
 
+        # Memória da IA: persiste a análise para consulta posterior
+        _save_memory(title, "achado", result)
+        return result
+
     except Exception:
         return local_ai_fallback(title, description)
+
+
+def _save_memory(title, category, result):
+    """Salva a análise da IA no histórico (memória). Falhas são ignoradas."""
+    try:
+        from dashboard.db import save_ai_memory
+
+        resumo = (
+            f"Explicação: {result.get('explicacao', '')} | "
+            f"Risco: {result.get('risco', '')} | "
+            f"Correção: {result.get('correcao', '')}"
+        )
+        save_ai_memory(title, category, resumo)
+    except Exception:
+        pass
 
 
 @st.cache_data(show_spinner=False)

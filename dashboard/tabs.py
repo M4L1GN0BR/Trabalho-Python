@@ -15,6 +15,7 @@ import streamlit as st
 from dashboard.ai import ask_ai, ask_executive_summary, local_ai_fallback
 from dashboard.db import (
     clear_url_history,
+    load_ai_memory,
     load_assets,
     load_scan_history,
 )
@@ -43,6 +44,7 @@ from dashboard.ui import (
     render_technical_table,
 )
 from src.core.auth import ROLE_LABELS, delete_user, load_users, register_user
+from src.core.attack.engine import run_attack_modules
 from src.core.correlation import correlate_findings
 from src.core.database_path import DB_PATH
 from src.core.evidence import build_evidence_store
@@ -784,6 +786,14 @@ def render_url_tab():
 
     usar_ia_url = st.checkbox("Usar IA para explicar cada achado da URL", value=True)
 
+    enum_subdominios = st.checkbox(
+        "Incluir subdomínios (crt.sh, passivo)", value=True
+    )
+
+    fazer_crawl = st.checkbox(
+        "Crawl de páginas internas (limitado, mesmo domínio)", value=True
+    )
+
     limite_ia_url = st.number_input(
         "Limite de achados explicados pela IA", min_value=1, max_value=50, value=10
     )
@@ -793,7 +803,12 @@ def render_url_tab():
             st.warning("Digite uma URL.")
         else:
             with st.spinner("Analisando URL..."):
-                st.session_state.last_url_scan = analyze_url(url)
+                st.session_state.last_url_scan = analyze_url(
+                    url,
+                    subdomains=enum_subdominios,
+                    crawl=fazer_crawl,
+                    crawl_max=12,
+                )
 
     result = st.session_state.last_url_scan
 
@@ -1309,6 +1324,19 @@ def render_attack_surface_tab():
                     limit=10,
                 )
 
+        # Subdomínios via Certificate Transparency (crt.sh) — informativo
+        subdominios = current_url_result.get("subdominios", [])
+        if subdominios:
+            st.subheader(f"Subdomínios identificados ({len(subdominios)})")
+            st.caption("Fonte: Certificate Transparency (crt.sh) — consulta pública e passiva.")
+            st.write(", ".join(subdominios[:40]))
+
+        # Páginas internas mapeadas no crawl (informativo)
+        crawl_links = current_url_result.get("crawl_links", [])
+        if crawl_links:
+            with st.expander(f"Páginas internas mapeadas no crawl ({len(crawl_links)})"):
+                st.write("\n".join(crawl_links))
+
         # Tecnologias detectadas
         if current_url_result:
             tech_indicators = []
@@ -1331,6 +1359,104 @@ def render_attack_surface_tab():
             if tech_indicators:
                 st.subheader("Tecnologias Detectadas")
                 st.write(", ".join(tech_indicators))
+
+
+# ═══════════════════════════════════════════════════════════════
+# TAB 8 - TESTES OFENSIVOS (LABORATÓRIO AUTORIZADO)
+# ═══════════════════════════════════════════════════════════════
+
+
+def render_offensive_tab():
+    st.subheader("Testes Ofensivos (Laboratório Autorizado)")
+
+    st.warning(
+        "Somente para uso autorizado (laboratório, DVWA, Juice Shop, alvos próprios). "
+        "Testar terceiros sem autorização é ilegal no Brasil (Lei 12.737/2012)."
+    )
+
+    autorizado = st.checkbox(
+        "Confirmo que tenho autorização para testar este alvo", value=False
+    )
+
+    url = st.text_input("URL do alvo", placeholder="https://alvo-autorizado.com")
+
+    mods = st.multiselect(
+        "Módulos",
+        ["recon", "idor", "fuzz", "rate", "cors", "methods", "traversal", "redirect"],
+        default=["recon", "idor", "fuzz", "rate", "cors", "methods", "traversal", "redirect"],
+        format_func=lambda m: {
+            "recon": "Recon Ativo (portas)",
+            "idor": "IDOR / Enumeração de IDs",
+            "fuzz": "API Fuzzing (caminhos comuns)",
+            "rate": "Rate Limit",
+            "cors": "CORS Misconfiguration",
+            "methods": "HTTP Methods / TRACE",
+            "traversal": "Path Traversal (LFI)",
+            "redirect": "Open Redirect",
+        }[m],
+    )
+
+    id_param = st.text_input("Parâmetro de ID (IDOR)", value="id")
+    traversal_param = st.text_input("Parâmetro de arquivo (Path Traversal)", value="file")
+
+    if st.button(
+        "Executar testes",
+        disabled=not (autorizado and url.strip()),
+        use_container_width=True,
+    ):
+        with st.spinner("Executando testes (limitados e sem ações destrutivas)..."):
+            st.session_state.attack_results = run_attack_modules(
+                url, modules=mods, id_param=id_param, traversal_param=traversal_param
+            )
+
+    result = st.session_state.get("attack_results")
+
+    if not result:
+        render_empty_state(
+            "Nenhum teste executado.",
+            "Configure o alvo autorizado, confirme a autorização e execute os módulos.",
+            "info",
+        )
+        return
+
+    st.success(
+        f"Testes concluídos em {result['target']} — {result['total_findings']} achado(s)"
+    )
+
+    df = pd.DataFrame(result["findings"])
+    if not df.empty:
+        alta = df[df["Prioridade"] == "Alta"].shape[0]
+        media = df[df["Prioridade"] == "Média"].shape[0]
+        baixa = df[df["Prioridade"] == "Baixa"].shape[0]
+
+        c1, c2, c3 = st.columns(3)
+        c1.metric("Riscos Altos", alta)
+        c2.metric("Riscos Médios", media)
+        c3.metric("Baixos / OK", baixa)
+
+        render_table_as_cards(
+            df,
+            title_key="Item",
+            subtitle_keys=["Categoria", "Status"],
+            badge_key="Prioridade",
+            description_key="Descrição",
+            limit=12,
+        )
+        render_technical_table("Ver tabela técnica completa", df)
+
+    for mod, label in [
+        ("recon", "Recon Ativo (portas)"),
+        ("idor", "IDOR"),
+        ("fuzz", "API Fuzzing"),
+        ("rate", "Rate Limit"),
+        ("cors", "CORS"),
+        ("methods", "HTTP Methods"),
+        ("traversal", "Path Traversal"),
+        ("redirect", "Open Redirect"),
+    ]:
+        if mod in result["module_results"]:
+            with st.expander(f"{label} — detalhes"):
+                st.json(result["module_results"][mod])
 
 
 # ═══════════════════════════════════════════════════════════════
@@ -1571,3 +1697,18 @@ def render_admin_tab():
             st.dataframe(sessions_df, use_container_width=True)
         else:
             st.caption("Nenhuma sessão registrada ainda.")
+
+    # ── Memória da IA ──
+    with st.expander("Memória da IA (análises recentes)"):
+        memory_df = load_ai_memory(limit=20)
+        if not memory_df.empty:
+            st.caption(
+                f"{len(memory_df)} análises mais recentes persistidas pelo engine de IA "
+                "(explicações, riscos e correções de cada achado)."
+            )
+            st.dataframe(memory_df, use_container_width=True)
+        else:
+            st.caption(
+                "Nenhuma análise da IA registrada ainda. As explicações dos achados "
+                "são salvas automaticamente conforme o dashboard processa findings."
+            )

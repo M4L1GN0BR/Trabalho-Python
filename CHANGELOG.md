@@ -1,6 +1,6 @@
 # ASPM - Novas Funcionalidades e Melhorias
 
-## 📋 Sumário
+##  Sumário
 
 1. [Orquestrador de Scans](#1-orquestrador-de-scans)
 2. [CLI Unificada](#2-cli-unificada)
@@ -15,6 +15,9 @@
 11. [Classificação de API corrigida (evidência real)](#11-classificação-de-api-corrigida-evidência-real)
 12. [Mapeamento OWASP Top 10](#12-mapeamento-owasp-top-10)
 13. [WAF, Cookies e JWT Analyzer (análise passiva)](#13-waf-cookies-e-jwt-analyzer-análise-passiva)
+14. [Subdomínios, Crawler e Memória de IA](#14-subdomínios-crawler-e-memória-de-ia)
+15. [Testes Ofensivos (Laboratório Autorizado)](#15-testes-ofensivos-laboratório-autorizado)
+16. [Novos módulos ofensivos (CORS, HTTP Methods, Path Traversal, Open Redirect)](#16-novos-módulos-ofensivos-cors-http-methods-path-traversal-open-redirect)
 
 ---
 
@@ -276,6 +279,64 @@ Três análises defensivas adicionadas (nenhuma exploração — apenas leitura 
 O demo (`src/generate_demo_data.py`) agora gera um JWT estruturado (`alg=HS256`, payload com `role=admin` e sem `exp`) para a análise aparecer na apresentação. A aba Attack Surface ganhou a categoria **Cookies** e a seção "Headers de Segurança e Cookies".
 
 Validação real: `betano.bet.br` → WAF **Cloudflare** detectado (Controle OK) e cookie `_cfuvid` com Secure/HttpOnly/SameSite (Controle OK).
+
+---
+
+## 14. Subdomínios, Crawler e Memória de IA
+
+**Arquivos:** `src/core/url_analysis.py`, `dashboard/db.py`, `dashboard/ai.py`, `dashboard/tabs.py`
+
+Três recursos passivos/defensivos adicionados:
+
+| Recurso | O que faz | Onde aparece |
+|---|---|---|
+| **Enumeração de subdomínios** | Consulta crt.sh (Certificate Transparency) com fallback no HackerTarget — fontes públicas e passivas | Attack Surface → "Subdomínios identificados" |
+| **Crawler limitado** | Segue links internos do mesmo domínio (máx. 12 páginas, timeouts curtos) | Attack Surface → "Páginas internas mapeadas no crawl" |
+| **Memória da IA** | Persiste as análises da IA (explicação/risco/correção) no SQLite (`ai_memory`) com usuário e data | Administração → "Memória da IA" |
+
+Ambos os recursos de recon têm checkbox na aba URL Analysis e degradam graciosamente offline. Validação real: `betano.bet.br` → **17 subdomínios** encontrados e **5 páginas** no crawl.
+
+Os módulos ofensivos (recon ativo, IDOR, API fuzzing, rate-limit) permanecem fora do escopo — aguardando decisão do grupo.
+
+---
+
+## 15. Testes Ofensivos (Laboratório Autorizado)
+
+**Arquivos:** `src/core/attack/` (NOVO pacote: `engine.py`, `recon_active.py`, `idor_tester.py`, `api_fuzzer.py`, `rate_limit_tester.py`) + aba "Testes Ofensivos" no dashboard + comando `attack` na CLI
+
+Módulos de teste ativo implementados **após decisão do grupo**, com travas de segurança:
+
+| Módulo | O que faz | Limites |
+|---|---|---|
+| **Recon Ativo** | Scan TCP de 26 portas comuns + banner grabbing; serviços sensíveis (banco, RDP, SMB...) expostos viram achados | timeout 2s/porta |
+| **IDOR** | Compara respostas para IDs diferentes (1, 2, 3, 100000) e sinaliza possível enumeração | 4 IDs, GET |
+| **API Fuzzing** | Tenta 25 caminhos comuns de API e destaca rotas sensíveis acessíveis (admin/config/token...) | 25 GETs |
+| **Rate Limit** | Envia 15 requisições e verifica presença de limitação (ausência = achado, OWASP API4:2023) | 15 GETs |
+
+**Travas:** aviso de autorização na interface com checkbox obrigatório, nenhuma ação destrutiva (só GET/connect), timeouts curtos, resultado sempre rotulado como "possível" quando heurístico. CLI: `python src/main.py attack --url <alvo> --modules recon,idor,fuzz,rate` → salva `data/attack-results.json`.
+
+Validado contra servidor local de teste (autorizado): os 4 módulos geraram achados corretamente.
+
+> Aviso legal: testar terceiros sem autorização é ilegal no Brasil (Lei 12.737/2012). Os módulos são ferramentas legítimas para laboratório/uso autorizado.
+
+---
+
+## 16. Novos módulos ofensivos (CORS, HTTP Methods, Path Traversal, Open Redirect)
+
+**Arquivos:** `src/core/attack/cors_checker.py`, `src/core/attack/http_methods.py`, `src/core/attack/path_traversal.py`, `src/core/attack/open_redirect.py` (NOVOS) + engine atualizado
+
+O pacote de testes ofensivos agora tem **8 módulos** (antes 4):
+
+| Módulo | Detecção | Classificação |
+|---|---|---|
+| **CORS** | Reflexo de `Origin` arbitrária + `Access-Control-Allow-Credentials: true` | Achado Ativo Alta (eco+credenciais) / Média (eco) / Melhoria (wildcard) |
+| **HTTP Methods** | `TRACE` habilitado (XST) e métodos de escrita no `Allow` | TRACE = Achado Ativo Média · escrita = Melhoria |
+| **Path Traversal** | Payloads de LFI (`../../etc/passwd`, variações encoded) com detecção de conteúdo sensível | Confirmado = Achado Ativo Alta |
+| **Open Redirect** | Parâmetros comuns (`url`, `next`, `returnUrl`...) apontando para domínio externo | Achado Ativo Média |
+
+CLI: `python src/main.py attack --url <alvo> --modules recon,idor,fuzz,rate,cors,methods,traversal,redirect --traversal-param file`. Dashboard: aba Testes Ofensivos com os 8 módulos selecionáveis. Validado contra servidor local (autorizado) — os 4 novos módulos geraram os achados esperados.
+
+Exploração avançada (SQLi/XSS ativos, credential stuffing) permanece como evolução futura documentada no README, aguardando decisão do grupo.
 
 ---
 

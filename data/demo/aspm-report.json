@@ -1,6 +1,6 @@
 {
   "scan_metadata": {
-    "timestamp": "2026-08-19T16:39:25.923495",
+    "timestamp": "2026-08-23T20:41:15.857854",
     "repo_path": "./demo-app",
     "duration_seconds": 0,
     "tools": {
@@ -247,7 +247,7 @@
         "Description": "JWT Token",
         "File": "src/app/utils.py",
         "StartLine": 72,
-        "Secret": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJ1c2VyXzEwNDIiLCJyb2xlIjoiYWRtaW4iLCJpYXQiOjE3ODcxNjgzNjV9.UpkDyr7OSJoRu1XXdo0cZuzren68K4TunPFz46PDjqi"
+        "Secret": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJ1c2VyXzEwNDIiLCJyb2xlIjoiYWRtaW4iLCJpYXQiOjE3ODc1Mjg0NzV9.UpkDyr7OSJoRu1XXdo0cZuzren68K4TunPFz46PDjqi"
       }
     ]
   },

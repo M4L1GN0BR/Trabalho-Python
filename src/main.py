@@ -73,6 +73,40 @@ def cmd_scan(args):
     return report
 
 
+def cmd_attack(args):
+    """Executa testes ofensivos (somente uso autorizado)."""
+    from core.attack.engine import run_attack_modules
+
+    print("=" * 60)
+    print("  TESTES OFENSIVOS - ASPM")
+    print("  ATENÇÃO: somente uso autorizado (laboratório). Testar terceiros")
+    print("  sem autorização é ilegal no Brasil (Lei 12.737/2012).")
+    print("=" * 60)
+
+    modules = args.modules.split(",") if args.modules else None
+    res = run_attack_modules(
+        args.url,
+        modules=modules,
+        id_param=args.id_param,
+        traversal_param=args.traversal_param,
+    )
+
+    print(f"\nAlvo: {res['target']}")
+    print(f"Módulos: {', '.join(res['modules_executados'])}")
+    print(f"Total de achados: {res['total_findings']}")
+    print("-" * 60)
+    for f in res["findings"]:
+        print(f"  [{f['Prioridade']}] {f['Categoria']} - {f['Item']}: {f['Status']}")
+        print(f"      {f['Descrição'][:140]}")
+
+    out = Path(args.output)
+    out.mkdir(parents=True, exist_ok=True)
+    path = out / "attack-results.json"
+    with open(path, "w", encoding="utf-8") as f:
+        json.dump(res, f, indent=2, ensure_ascii=False)
+    print(f"\nSalvo: {path.resolve()}")
+
+
 def _launch_dashboard():
     """Inicia o dashboard Streamlit (subprocess)."""
     import subprocess
@@ -151,6 +185,28 @@ Exemplos:
         help="Seed para reproduzir a mesma execução (mesma seed = mesmos achados)",
     )
 
+    # ── attack ──
+    attack_parser = subparsers.add_parser(
+        "attack", help="Testes ofensivos (somente uso autorizado / laboratório)"
+    )
+    attack_parser.add_argument("--url", required=True, help="URL do alvo autorizado")
+    attack_parser.add_argument(
+        "--modules",
+        default=None,
+        help="Módulos: recon,idor,fuzz,rate,cors,methods,traversal,redirect (padrão: todos)",
+    )
+    attack_parser.add_argument(
+        "--id-param", default="id", help="Parâmetro de ID usado no teste de IDOR"
+    )
+    attack_parser.add_argument(
+        "--traversal-param",
+        default="file",
+        help="Parâmetro usado no teste de Path Traversal",
+    )
+    attack_parser.add_argument(
+        "--output", "-o", default="./data", help="Diretório de saída"
+    )
+
     args = parser.parse_args()
 
     if args.command == "scan":
@@ -159,6 +215,8 @@ Exemplos:
         cmd_dashboard(args)
     elif args.command == "demo":
         cmd_demo(args)
+    elif args.command == "attack":
+        cmd_attack(args)
     else:
         parser.print_help()
 

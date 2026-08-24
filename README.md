@@ -67,8 +67,10 @@ aspm/
 │       ├── risk_engine.py       # Risk Engine consolidado (score + priorização)
 │       ├── evidence.py          # Evidence Engine (normaliza achados)
 │       ├── correlation.py       # Correlação de riscos entre ferramentas
+│       ├── owasp.py             # Mapeamento OWASP Top 10 (classificação por evidência)
 │       ├── secrets.py           # Secrets Scanner (regras + Gitleaks)
-│       ├── url_analysis.py      # Análise de URL, headers, TLS e attack surface
+│       ├── url_analysis.py      # Análise de URL, headers, TLS, WAF, cookies, subdomínios
+│       ├── attack/              # Testes ofensivos (lab autorizado): recon, IDOR, fuzz, rate
 │       ├── context.py           # Extração de contexto do código para a IA
 │       ├── text.py              # Utilidades de texto/JSON
 │       ├── parser.py            # Parsers de JSON simples
@@ -82,6 +84,8 @@ aspm/
 ├── .gitignore
 ├── requirements.txt
 ├── test_dashboard_smoke.py      # Smoke test do dashboard (AppTest)
+├── test_apresentacao.py         # Valida o fluxo de apresentação (modo demo)
+├── ROTEIRO-APRESENTACAO.md      # Guia passo a passo para a apresentação
 └── CHANGELOG.md
 ```
 
@@ -138,6 +142,8 @@ O upload pode ser feito de duas formas:
 1. **Upload Consolidado** (recomendado): envie o `aspm-report.json` na sidebar — preenche Semgrep, Bandit, SCA e Secrets de uma vez e registra o scan no histórico.
 2. **Upload individual**: envie o JSON de cada ferramenta na aba correspondente.
 
+A aba **URL Analysis** permite análise passiva de qualquer URL (headers, TLS, WAF, cookies, subdomínios via crt.sh e crawler limitado — todos com checkbox para ligar/desligar).
+
 ### 4. Rodar scan completo (modo automático)
 
 ```bash
@@ -181,6 +187,28 @@ Arquivos gerados:
 - `aspm-report.json` — **Upload Consolidado** na sidebar (carregado automaticamente no modo demo)
 
 > Os achados são **simulados** (marcados como `demo_data: true` no relatório) — usam regras reais do Semgrep, testes reais do Bandit e CVEs reais com versões de correção, para a apresentação ficar realista. A IA do dashboard continua explicando cada achado normalmente.
+
+### 6. Testes Ofensivos (somente uso autorizado / laboratório)
+
+Módulos de teste ativo (Recon Ativo, IDOR, API Fuzzing, Rate Limit) — **apenas para alvos autorizados** (DVWA, Juice Shop, laboratório próprio). Testar terceiros sem autorização é ilegal no Brasil (Lei 12.737/2012).
+
+**Pela CLI:**
+
+```bash
+python src/main.py attack --url https://alvo-autorizado.com
+# só alguns módulos:
+python src/main.py attack --url https://alvo-autorizado.com --modules recon,fuzz,cors,redirect
+# parâmetro de ID diferente (IDOR) e de arquivo (Path Traversal):
+python src/main.py attack --url https://alvo-autorizado.com/api/user/{id} --id-param id --traversal-param file
+```
+
+Módulos disponíveis: `recon, idor, fuzz, rate, cors, methods, traversal, redirect`. Gera `data/attack-results.json` com os achados.
+
+**Pelo dashboard:** aba **Testes Ofensivos (Lab)** → confirme a autorização no checkbox (obrigatório) → informe a URL e os módulos → **Executar testes**.
+
+### 7. Roteiro de apresentação
+
+O arquivo **`ROTEIRO-APRESENTACAO.md`** é um guia passo a passo para apresentar o projeto (comandos em ordem, o que falar em cada etapa e fallbacks). Recomendado para a entrega da FIAP.
 
 ---
 
@@ -256,6 +284,28 @@ Análise de endpoints, headers de segurança, TLS, **WAF/CDN** e tecnologias det
 - **Cookies**: analisa flags `Secure`, `HttpOnly` e `SameSite` de cada `Set-Cookie` → Controle OK ou Melhoria Recomendada
 - **JWT**: o Secrets Scanner decodifica header/payload do JWT (sem validar assinatura) e sinaliza `alg=none`, ausência de `exp` e claims sensíveis (`role`/`admin`)
 
+### Subdomínios e crawler (recon passivo)
+- **Enumeração de subdomínios**: consulta Certificate Transparency (crt.sh) com fallback no HackerTarget — fontes públicas e passivas, sem scan direto no alvo (ex: `betano.bet.br` → 17 subdomínios)
+- **Crawler limitado**: segue links internos do mesmo domínio (máx. 12 páginas) para mapear rotas — mostra as páginas internas encontradas no Attack Surface
+- Ambos com checkboxes na aba URL Analysis e degradação graciosa offline
+
+### Memória da IA
+As análises da IA (explicações, riscos e correções de cada achado) são **persistidas no SQLite** e podem ser consultadas na aba **Administração → Memória da IA** — mostrando o histórico do que a IA analisou, por usuário e data.
+
+### Testes Ofensivos (Lab)
+Módulos de teste ativo em aba própria (**Testes Ofensivos**), **somente para uso autorizado** (DVWA, Juice Shop, alvos próprios):
+
+- **Recon Ativo**: scan TCP de portas comuns + banner grabbing; serviços sensíveis expostos (banco, RDP, SMB...) viram achados
+- **IDOR**: compara respostas para IDs diferentes e sinaliza possível enumeração
+- **API Fuzzing**: tenta caminhos comuns de API e destaca rotas sensíveis acessíveis
+- **Rate Limit**: verifica se o alvo limita requisições (ausência = achado, OWASP API4)
+- **CORS**: envia `Origin` de terceiros e detecta reflexo de origem com credenciais
+- **HTTP Methods**: lista métodos via `OPTIONS` e testa `TRACE` (XST)
+- **Path Traversal**: testa payloads de LFI (`../../etc/passwd`) no parâmetro informado
+- **Open Redirect**: testa parâmetros comuns de redirecionamento (`url`, `next`, `returnUrl`...)
+
+A execução exige **confirmação explícita de autorização** e é limitada (poucas requisições, timeouts, sem ações destrutivas). Também disponível via CLI: `python src/main.py attack --url <alvo>` — resultados salvos em `data/attack-results.json`.
+
 ---
 
 ##  Evolução Arquitetural
@@ -318,7 +368,7 @@ A API será documentada com Swagger/OpenAPI e permitirá integração CI/CD.
 - [ ] Notificações via Slack/Email
 - [ ] API REST com Swagger/OpenAPI
 - [ ] Ampliar testes automatizados com `pytest`
-- [ ] Módulos ofensivos (SQLi/XSS/auth) apenas em ambiente de laboratório autorizado
+- [ ] Módulos de exploração avançada (SQLi/XSS/credential stuffing) — apenas em laboratório, com decisão do grupo
 
 ---
 
@@ -328,14 +378,23 @@ A API será documentada com Swagger/OpenAPI e permitirá integração CI/CD.
 # Smoke test do dashboard (login + todas as abas + dados consolidados)
 python test_dashboard_smoke.py
 
+# Valida o fluxo de apresentação (modo demo)
+python test_apresentacao.py
+
 # Dados de demonstração (gera e abre o site com os achados carregados)
 python src/main.py demo
+
+# Testes ofensivos (somente uso autorizado / laboratório)
+python src/main.py attack --url https://alvo-autorizado.com
 
 # Scan completo de exemplo
 python src/main.py scan --repo ./src --output ./data --skip-trivy
 
 # Dashboard
 python src/main.py dashboard   # login: admin / admin
+
+# Roteiro completo da apresentação (comandos em ordem + fallbacks)
+# → veja ROTEIRO-APRESENTACAO.md
 ```
 
 ---

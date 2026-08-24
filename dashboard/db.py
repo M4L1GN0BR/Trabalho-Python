@@ -101,6 +101,17 @@ def init_db():
         )
     """)
 
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS ai_memory (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            created_at TEXT,
+            username TEXT,
+            title TEXT,
+            category TEXT DEFAULT 'achado',
+            response TEXT
+        )
+    """)
+
     # Migração: adiciona colunas novas se não existirem
     migracoes = [
         ("scan_history", "asset_id", "INTEGER DEFAULT 1"),
@@ -343,3 +354,53 @@ def get_asset_findings_count(asset_id):
         return 0
     total = df["total"].iloc[0]
     return int(total) if total else 0
+
+
+# ── Memória da IA ──
+
+
+def save_ai_memory(title, category, response):
+    """
+    Persiste uma análise da IA (memória) para consulta posterior.
+
+    Parâmetros
+    ----------
+    title : str
+        Título do achado/item analisado.
+    category : str
+        Categoria (achado, resumo, url...).
+    response : str
+        Resposta da IA (explicação/risco/correção).
+    """
+    try:
+        conn = sqlite3.connect(DB_PATH)
+        cursor = conn.cursor()
+        cursor.execute(
+            """
+            INSERT INTO ai_memory (created_at, username, title, category, response)
+            VALUES (?, ?, ?, ?, ?)
+            """,
+            (
+                datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                get_current_username(),
+                str(title)[:200],
+                category,
+                str(response)[:2000],
+            ),
+        )
+        conn.commit()
+        conn.close()
+    except Exception:
+        pass  # memória é acessória: nunca deve quebrar o fluxo principal
+
+
+def load_ai_memory(limit=20):
+    """Carrega as análises da IA mais recentes."""
+    conn = sqlite3.connect(DB_PATH)
+    df = pd.read_sql_query(
+        "SELECT id, created_at, username, title, category, response FROM ai_memory ORDER BY id DESC LIMIT ?",
+        conn,
+        params=[limit],
+    )
+    conn.close()
+    return df

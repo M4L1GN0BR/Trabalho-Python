@@ -10,7 +10,7 @@ import re
 import socket
 import ssl
 from datetime import datetime
-from urllib.parse import urlparse
+from urllib.parse import urljoin, urlparse
 
 import requests
 import tldextract
@@ -832,7 +832,105 @@ def analyze_cookies(set_cookie_values):
     return findings
 
 
-def analyze_url(url):
+def _query_crtsh(domain, timeout):
+    """Consulta logs públicos de certificados (crt.sh)."""
+    subdomains = set()
+    try:
+        resp = requests.get(
+            f"https://crt.sh/?q=%25.{domain}&output=json",
+            timeout=timeout,
+            headers={"User-Agent": "ASPM-Scanner/1.0"},
+        )
+        if resp.status_code == 200:
+            data = resp.json()
+            for entry in data:
+                names = str(entry.get("name_value", "")).split("\n")
+                for name in names:
+                    name = name.strip().strip("*").lower()
+                    if name.endswith(f".{domain}") or name == domain:
+                        subdomains.add(name)
+    except Exception:
+        pass
+    return subdomains
+
+
+def _query_hackertarget(domain, timeout):
+    """Consulta passiva ao HackerTarget (hostsearch) como fonte alternativa."""
+    subdomains = set()
+    try:
+        resp = requests.get(
+            f"https://api.hackertarget.com/hostsearch/?q={domain}",
+            timeout=timeout,
+            headers={"User-Agent": "ASPM-Scanner/1.0"},
+        )
+        if resp.status_code == 200 and resp.text:
+            for line in resp.text.strip().splitlines():
+                name = line.split(",")[0].strip().lower()
+                if name.endswith(f".{domain}") or name == domain:
+                    subdomains.add(name)
+    except Exception:
+        pass
+    return subdomains
+
+
+def enumerate_subdomains(domain, timeout=8, limit=40):
+    """
+    Enumera subdomínios de forma passiva via Certificate Transparency (crt.sh)
+    com fallback no HackerTarget. Nenhum scan direto no alvo.
+
+    Retorna lista ordenada de subdomínios (vazia se indisponível/offline).
+    """
+    domain = str(domain).strip().lower().lstrip("*.")
+    if not domain:
+        return []
+
+    subdomains = _query_crtsh(domain, timeout)
+    if not subdomains:
+        # crt.sh costuma ficar sobrecarregado (502) — tenta fonte alternativa
+        subdomains = _query_hackertarget(domain, timeout)
+
+    return sorted(subdomains)[:limit]
+
+
+def crawl_internal_links(url, max_pages=12, timeout=3):
+    """
+    Crawl passivo e limitado: segue links internos do mesmo domínio.
+
+    Apenas requisições GET a páginas do próprio domínio, com limite de páginas
+    (max_pages) para não virar varredura. Retorna lista de URLs visitadas.
+    """
+    visited = []
+    seen = set()
+    queue = [url]
+    base_host = (urlparse(url).hostname or "").lower()
+
+    while queue and len(visited) < max_pages:
+        current = queue.pop(0)
+        if current in seen:
+            continue
+        seen.add(current)
+        try:
+            resp = requests.get(
+                current,
+                timeout=timeout,
+                headers={"User-Agent": "ASPM-Scanner/1.0"},
+            )
+            visited.append(current)
+            html = resp.text[:200000] if resp.text else ""
+            for href in re.findall(r'href=["\']([^"\'#]+)["\']', html, re.I):
+                full = urljoin(current, href.strip())
+                parsed = urlparse(full)
+                if parsed.scheme in ("http", "https") and (parsed.hostname or "").lower() == base_host:
+                    normalized = f"{parsed.scheme}://{parsed.netloc}{parsed.path or '/'}"
+                    if normalized not in seen and len(seen) < max_pages * 3:
+                        queue.append(normalized)
+        except Exception:
+            break
+
+    return visited
+
+
+def analyze_url(url, subdomains=True, crawl=True, crawl_max=12):
     url = normalize_url(url)
     findings = []
 
@@ -1010,6 +1108,22 @@ def analyze_url(url):
 
         findings.extend(scan_common_paths(base_url))
 
+        # Subdomínios via Certificate Transparency (crt.sh) — passivo
+        subdomain_list = []
+        if host and subdomains:
+            try:
+                subdomain_list = enumerate_subdomains(host)
+            except Exception:
+                subdomain_list = []
+
+        # Crawl interno limitado (passivo, mesmo domínio)
+        crawl_links = []
+        if crawl:
+            try:
+                crawl_links = crawl_internal_links(final_url or url, max_pages=crawl_max)
+            except Exception:
+                crawl_links = []
+
         score, classification = calculate_score(findings)
 
         return {
@@ -1020,6 +1134,8 @@ def analyze_url(url):
             "score": score,
             "classificacao": classification,
             "findings": findings,
+            "subdominios": subdomain_list,
+            "crawl_links": crawl_links,
         }
 
     except Exception as e:

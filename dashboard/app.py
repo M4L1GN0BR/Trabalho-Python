@@ -31,6 +31,7 @@ from dashboard.tabs import (
     render_attack_surface_tab,
     render_bandit_tab,
     render_engagements_tab,
+    render_offensive_tab,
     render_resumo_tab,
     render_sca_tab,
     render_secrets_tab,
@@ -112,9 +113,9 @@ if st.sidebar.button("Limpar falsos positivos manuais"):
     st.rerun()
 
 
-# ATENÇÃO: aba "Assets / Ativos" desativada (tab8 comentada em tabs.py).
-# Para reativar, remova o # da linha "Assets / Ativos" e chame render_assets_tab().
-tab1, tab2, tab3, tab4, tab5, tab6, tab7, tab9, tab10 = st.tabs(
+# ATENÇÃO: aba "Assets / Ativos" desativada (lógica comentada em tabs.py).
+# A aba "Testes Ofensivos" ocupa a posição 8 (somente uso autorizado).
+tab1, tab2, tab3, tab4, tab5, tab6, tab7, tab8, tab9, tab10 = st.tabs(
     [
         "Resumo Executivo",
         "Semgrep",
@@ -123,7 +124,7 @@ tab1, tab2, tab3, tab4, tab5, tab6, tab7, tab9, tab10 = st.tabs(
         "URL Analysis",
         "Secrets",
         "Attack Surface",
-        # "Assets / Ativos",  # DESATIVADO
+        "Testes Ofensivos (Lab)",
         "Engagements & Scans",
         "Administração",
     ]
@@ -149,6 +150,9 @@ with tab6:
 
 with tab7:
     render_attack_surface_tab()
+
+with tab8:
+    render_offensive_tab()
 
 with tab9:
     render_engagements_tab()
