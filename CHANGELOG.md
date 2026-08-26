@@ -1,5 +1,51 @@
 # ASPM - Novas Funcionalidades e Melhorias
 
+##  Melhorias baseadas em teste em ambiente real (DefectDojo)
+
+Atualização derivada do estudo de caso documentado em `ESTUDO-DEFECTDOJO.md`
+(scan real do DefectDojo — 1.898 achados, 1.988 arquivos Python).
+
+1. **Bandit em lotes** (`src/orchestrator.py`): corrigido bug do Windows — linha de
+   comando estourava o limite de 32k chars com projetos grandes; agora processa em
+   lotes de 80 arquivos e consolida os resultados.
+2. **Secrets Scanner ampliado** (`src/core/secrets.py`): de 7 para 13 regras — PGP
+   private key, AWS secret access key, GitHub fine-grained, Stripe, Slack, npm, PyPI.
+3. **Contexto de arquivo de teste** (`src/core/evidence.py`): evidências em paths de
+   teste/fixture recebem flag `in_test_file` e peso reduzido no Risk Engine.
+4. **Falsos positivos por contexto** (`src/core/evidence.py` + `risk_engine.py`):
+   heurísticas para `hashlib` de deduplicação, `0.0.0.0` em parser, `mark_safe` em
+   form/widget — rebaixamento automático com motivo (`fp_reason`).
+5. **Risk Engine com score ativo** (`src/core/risk_engine.py`): penalidades do score
+   consideram apenas achados ativos; `by_severity_active`, `fp_count` e justificativa
+   com contagem de FPs desconsiderados.
+6. **Inventário de dependências (SBOM-lite)** (`src/core/inventory.py`): risco por
+   pacote (CVEs, pior severidade, versões corrigidas) integrado à aba SCA do dashboard.
+7. **Indicadores visuais** (dashboard): badges "ARQUIVO DE TESTE" e "FP PROVÁVEL" nos
+   riscos prioritários do Resumo Executivo, com o motivo do rebaixamento.
+8. **Fixtures reais + testes** (`tests/fixtures/` + `test_parsers.py`): amostras
+   extraídas do scan real do DefectDojo validam parsers, contexto e inventário
+   (28 verificações).
+
+**Resultado no relatório real:** 1.382 candidatos a falso positivo identificados com
+motivo; severidade Alta ativa caiu de 244 para 48; Média ativa de 1.305 para 271.
+
+### Segunda rodada — CI/CD, Templates e CVSS
+
+9. **Parser de GitHub Actions** (`src/core/github_actions.py`): detecta shell
+   injection em `run:`, `pull_request_target`, secrets herdados, permissões
+   amplas e checkout de PR — 22 achados no DefectDojo. Nova aba **"CI/CD &
+   Templates"** no dashboard.
+10. **Análise de templates XSS** (`src/core/template_xss.py`): `autoescape off`,
+    `|safe` e `blocktranslate` com variáveis — 58 achados no DefectDojo.
+11. **Calculadora CVSS v3.1** (`src/core/cvss.py`): spec FIRST validada
+    (Log4Shell 10.0, EternalBlue 8.1) + score CVSS por pacote no inventário
+    (`src/core/inventory.py`).
+12. **Guias** (`README-GITHUB-ACTIONS.md` e `README-GITLEAKS.md`): como ativar o
+    CI, analisar workflows de terceiros, instalar/usar o Gitleaks e importar
+    resultados no dashboard.
+
+---
+
 ##  Sumário
 
 1. [Orquestrador de Scans](#1-orquestrador-de-scans)
@@ -359,7 +405,7 @@ Exploração avançada de SQLi (extração/dump) e integração com ferramentas 
 
 ---
 
-## 🔧 Instalação
+##  Instalação
 
 ```bash
 # 1. Clonar o projeto

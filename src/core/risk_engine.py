@@ -97,10 +97,27 @@ def score_evidence(evidence):
 
     total += evidencia_extra
 
+    # Contexto (aprendizado do estudo de caso DefectDojo):
+    # - Achados em arquivos de teste/fixture têm peso reduzido (ex.: chaves
+    #   PGP em fixtures de parsers sinalizadas como segredos).
+    # - Candidatos a falso positivo por heurística de contexto (ex.:
+    #   hashlib.md5 usado para chave de deduplicação, não criptografia).
+    contexto = {}
+    if evidence.get("in_test_file"):
+        total -= 3
+        contexto["in_test_file"] = True
+    if evidence.get("fp_candidate"):
+        total -= 5
+        contexto["fp_candidate"] = True
+        contexto["fp_reason"] = evidence.get("fp_reason", "")
+
+    total = max(total, 0.0)
+
     return {
         "score": round(total, 1),
         "keywords": keywords_found,
         "evidencia_extra": evidencia_extra,
+        "contexto": contexto,
     }
 
 
@@ -203,15 +220,22 @@ def calculate_risk(evidences):
 
     # Contagens
     by_severity = {"Alta": 0, "Média": 0, "Baixa": 0}
+    # Contagem apenas de evidências ativas (ignora candidatos a falso positivo)
+    by_severity_active = {"Alta": 0, "Média": 0, "Baixa": 0}
+    fp_count = 0
     for ev in scored:
         label = ev.get("_severity_label", "Baixa")
         by_severity[label] = by_severity.get(label, 0) + 1
+        if ev.get("fp_candidate") or ev.get("in_test_file"):
+            fp_count += 1
+        else:
+            by_severity_active[label] = by_severity_active.get(label, 0) + 1
 
-    # Score geral: 100 - penalidades ponderadas
+    # Score geral: 100 - penalidades ponderadas (apenas achados ativos)
     score = 100
-    score -= by_severity["Alta"] * 10
-    score -= by_severity["Média"] * 4
-    score -= by_severity["Baixa"] * 1
+    score -= by_severity_active["Alta"] * 10
+    score -= by_severity_active["Média"] * 4
+    score -= by_severity_active["Baixa"] * 1
 
     # Penalidade por correlação forte
     for target, boost in boosts.items():
@@ -246,14 +270,21 @@ def calculate_risk(evidences):
             "cve": ev.get("cve", ""),
             "owasp_label": ev.get("owasp_label", ""),
             "owasp_name": ev.get("owasp_name", ""),
+            "in_test_file": bool(ev.get("in_test_file")),
+            "fp_candidate": bool(ev.get("fp_candidate")),
+            "fp_reason": ev.get("fp_reason", ""),
+            "title_pt": ev.get("title_pt", ""),
+            "evidence_pt": ev.get("evidence_pt", ""),
         })
 
     # Justificativa
     just = []
-    if by_severity["Alta"] > 0:
-        just.append(f"{by_severity['Alta']} risco(s) de alta severidade")
-    if by_severity["Média"] > 0:
-        just.append(f"{by_severity['Média']} risco(s) médios")
+    if by_severity_active["Alta"] > 0:
+        just.append(f"{by_severity_active['Alta']} risco(s) ativo(s) de alta severidade")
+    if by_severity_active["Média"] > 0:
+        just.append(f"{by_severity_active['Média']} risco(s) ativo(s) médios")
+    if fp_count > 0:
+        just.append(f"{fp_count} candidato(s) a falso positivo desconsiderado(s) no score")
     if boosts:
         just.append(f"{len(boosts)} alvo(s) com correlação entre ferramentas")
     justificativa = "; ".join(just) if just else "Sem achados relevantes."
@@ -265,7 +296,9 @@ def calculate_risk(evidences):
         "score_geral": score,
         "classificacao": classificacao,
         "by_severity": by_severity,
+        "by_severity_active": by_severity_active,
         "total_evidencias": len(scored),
+        "fp_count": fp_count,
         "riscos_prioritarios": riscos_prioritarios,
         "justificativa": justificativa,
         "correlacoes": boosts,

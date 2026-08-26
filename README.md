@@ -254,6 +254,26 @@ Motor único que correlaciona **Semgrep, Bandit, SCA, Secrets, URL Analysis e At
 ### Evidence Engine
 Normaliza todos os achados em um formato único (ferramenta, categoria, arquivo, linha, endpoint, dependência, CVE, severidade, confiança, trecho de código, resposta HTTP). É a base do Risk Engine e da IA.
 
+### Contexto de arquivo e falsos positivos
+Aprendizado do estudo de caso DefectDojo (ver `ESTUDO-DEFECTDOJO.md`):
+
+- Achados em **arquivos de teste/fixture** recebem peso reduzido no Risk Engine (no DefectDojo, 85 chaves PGP "vazadas" eram fixtures de teste de parsers).
+- **Falsos positivos por contexto** são rebaixados automaticamente com motivo: `hashlib` usado para deduplicação, `0.0.0.0` em parser de dados, `mark_safe` em form/widget.
+- Os riscos prioritários exibem badges "ARQUIVO DE TESTE" e "FP PROVÁVEL" com a justificativa.
+
+### CI/CD & Templates (GitHub Actions + XSS)
+Nova aba do dashboard que analisa **workflows GitHub Actions** e **templates HTML/Django** de qualquer repositório:
+
+- Shell injection (`${{ github.event.* }}` em `run:`), `pull_request_target`, `secrets: inherit`, permissões amplas, checkout de PR.
+- XSS em templates: `{% autoescape off %}`, `{{ var|safe }}`, `{{ var }}` em `blocktranslate`.
+- Guia de remediação embutido e exportação CSV.
+
+### Inventário de dependências (SBOM-lite) com CVSS
+A aba SCA agora mostra o **inventário por pacote**: total de CVEs, pior severidade, **score CVSS v3.1** e versões corrigidas — permitindo priorizar atualizações por componente (no DefectDojo: 156 dependências, 58 vulnerabilidades).
+
+### Calculadora CVSS v3.1
+Implementação pura da especificação FIRST (`src/core/cvss.py`), validada com vetores oficiais (Log4Shell 10.0, EternalBlue 8.1). Usada para enriquecer o inventário e estimar score quando a ferramenta não publica vetor.
+
 ### Mapeamento OWASP Top 10
 Cada achado é classificado automaticamente em uma categoria do **OWASP Top 10:2025** (A01–A10). O Resumo Executivo mostra as categorias mais presentes no ambiente em cards, os riscos prioritários exibem a categoria OWASP, e o relatório executivo em PDF traz a seção "Categorias OWASP Top 10".
 

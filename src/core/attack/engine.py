@@ -70,7 +70,9 @@ def run_attack_modules(
         informe o endpoint de login.
     modules : list, optional
         Subconjunto de ["recon", "idor", "fuzz", "rate", "cors", "methods",
-        "traversal", "redirect", "sqli", "xss", "creds"]. Padrão: todos.
+        "traversal", "redirect", "sqli", "xss", "creds"]. Padrão: todos
+        exceto `creds`, que só roda se explicitamente solicitado. Uma lista
+        vazia roda nenhum módulo.
     id_param : str
         Nome do parâmetro de ID usado no teste de IDOR.
     traversal_param : str
@@ -87,7 +89,8 @@ def run_attack_modules(
     dict
         {"target", "modules_executados", "module_results", "findings", "total_findings"}
     """
-    modules = modules or list(MODULE_LABELS.keys())
+    if modules is None:
+        modules = [m for m in MODULE_LABELS if m != "creds"]
     host = (urlparse(url).hostname or "").strip()
 
     results = {}

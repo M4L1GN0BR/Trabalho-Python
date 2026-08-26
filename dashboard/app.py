@@ -16,9 +16,33 @@ Ponto de entrada do dashboard. A lógica foi organizada em módulos:
 
 import json as _json
 import os as _os
+import textwrap as _textwrap
 from pathlib import Path as _Path
 
 import streamlit as st
+
+# ── Correção global de renderização HTML ──
+# O parser de Markdown do Streamlit trata linhas com 4+ espaços como bloco
+# de código. Como os cards HTML são construídos em f-strings indentadas,
+# o HTML aparecia como texto cru. O wrapper aplica dedent automaticamente.
+_original_markdown = st.markdown
+
+
+def _safe_markdown(body, *args, unsafe_allow_html=None, **kwargs):
+    if unsafe_allow_html is None:
+        unsafe_allow_html = False
+    if unsafe_allow_html and isinstance(body, str):
+        body = _textwrap.dedent(body)
+        # No parser CommonMark do Streamlit, uma linha em branco ENCERRA um
+        # bloco HTML; o que vem depois (indentado 4+) vira "bloco de código"
+        # e é exibido como texto cru. Como o conteúdo aqui é sempre HTML/CSS
+        # (linhas em branco não têm significado), removê-las mantém o bloco
+        # íntegro sem alterar a renderização.
+        body = "\n".join(line for line in body.splitlines() if line.strip())
+    return _original_markdown(body, *args, unsafe_allow_html=unsafe_allow_html, **kwargs)
+
+
+st.markdown = _safe_markdown
 
 from dashboard.db import init_db
 from dashboard.state import (
@@ -30,6 +54,7 @@ from dashboard.tabs import (
     render_admin_tab,
     render_attack_surface_tab,
     render_bandit_tab,
+    render_ci_cd_tab,
     render_engagements_tab,
     render_offensive_tab,
     render_resumo_tab,
@@ -112,10 +137,16 @@ if st.sidebar.button("Limpar falsos positivos manuais"):
     st.session_state.false_positives = set()
     st.rerun()
 
+st.sidebar.markdown("---")
+st.sidebar.caption(
+    "ASPM Enterprise v2.1.2 — correções de renderização HTML, deduplicação "
+    "de achados, orçamento de IA e descrições em pt-BR."
+)
+
 
 # ATENÇÃO: aba "Assets / Ativos" desativada (lógica comentada em tabs.py).
 # A aba "Testes Ofensivos" ocupa a posição 8 (somente uso autorizado).
-tab1, tab2, tab3, tab4, tab5, tab6, tab7, tab8, tab9, tab10 = st.tabs(
+tab1, tab2, tab3, tab4, tab5, tab6, tab7, tab8, tab9, tab10, tab11 = st.tabs(
     [
         "Resumo Executivo",
         "Semgrep",
@@ -127,6 +158,7 @@ tab1, tab2, tab3, tab4, tab5, tab6, tab7, tab8, tab9, tab10 = st.tabs(
         "Testes Ofensivos (Lab)",
         "Engagements & Scans",
         "Administração",
+        "CI/CD & Templates",
     ]
 )
 
@@ -159,3 +191,6 @@ with tab9:
 
 with tab10:
     render_admin_tab()
+
+with tab11:
+    render_ci_cd_tab()

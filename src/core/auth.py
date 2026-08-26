@@ -42,6 +42,8 @@ def verify_login(username, password):
         return None
 
     user_id, db_username, pw_hash, role = row
+    if not pw_hash:
+        return None
     try:
         if bcrypt.checkpw(password.encode("utf-8"), pw_hash.encode("utf-8")):
             return {"id": user_id, "username": db_username, "role": role}
@@ -52,6 +54,11 @@ def verify_login(username, password):
 
 def register_user(username, password, role="analista"):
     """Cria um novo usuário. Retorna True se criou, False se já existe."""
+    if len(password) < 8:
+        raise ValueError("A senha deve ter pelo menos 8 caracteres.")
+    if role not in ROLE_LABELS:
+        role = "analista"
+
     conn = sqlite3.connect(DB_PATH)
     cursor = conn.cursor()
     try:

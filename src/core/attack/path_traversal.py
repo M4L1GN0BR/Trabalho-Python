@@ -10,7 +10,7 @@ HEADERS = {"User-Agent": "ASPM-Scanner/1.0"}
 
 TRAVERSAL_PAYLOADS = [
     "../../../../../../etc/passwd",
-    "..%2f..%2f..%2f..%2fetc%2fpasswd",
+    "..%252f..%252f..%252f..%252fetc%252fpasswd",
     "....//....//....//etc/passwd",
     "..\\..\\..\\..\\windows\\win.ini",
 ]

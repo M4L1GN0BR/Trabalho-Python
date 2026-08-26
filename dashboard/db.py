@@ -43,10 +43,17 @@ def init_db():
         )
     """)
 
-    # Usuário padrão admin/admin
+    # Usuário padrão admin — senha definida via ambiente (ASPM_ADMIN_PASSWORD)
     cursor.execute("SELECT COUNT(*) FROM users")
     if cursor.fetchone()[0] == 0:
-        pw_hash = bcrypt.hashpw(b"admin", bcrypt.gensalt()).decode("utf-8")
+        admin_password = os.getenv("ASPM_ADMIN_PASSWORD")
+        if not admin_password:
+            admin_password = "admin"
+            print(
+                "[!] AVISO: usando senha padrão 'admin' para o usuário 'admin'. "
+                "Defina ASPM_ADMIN_PASSWORD no ambiente."
+            )
+        pw_hash = bcrypt.hashpw(admin_password.encode("utf-8"), bcrypt.gensalt()).decode("utf-8")
         cursor.execute(
             "INSERT INTO users (username, password_hash, role, created_at) VALUES (?, ?, ?, ?)",
             ("admin", pw_hash, "admin", datetime.now().strftime("%Y-%m-%d %H:%M")),

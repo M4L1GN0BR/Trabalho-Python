@@ -20,7 +20,9 @@ def http_methods_test(url, timeout=5):
     out = []
 
     try:
-        r = requests.options(url, headers=HEADERS, timeout=timeout)
+        r = requests.options(
+            url, headers=HEADERS, timeout=timeout, allow_redirects=False
+        )
         allow = r.headers.get("Allow", "")
         methods = [m.strip().upper() for m in allow.split(",") if m.strip()]
         out.append(
@@ -35,7 +37,9 @@ def http_methods_test(url, timeout=5):
         out.append({"method": "OPTIONS", "status": "erro", "allow": "", "methods": []})
 
     try:
-        r2 = requests.request("TRACE", url, headers=HEADERS, timeout=timeout)
+        r2 = requests.request(
+            "TRACE", url, headers=HEADERS, timeout=timeout, allow_redirects=False
+        )
         out.append({"method": "TRACE", "status": r2.status_code, "allow": "", "methods": []})
     except Exception:
         out.append({"method": "TRACE", "status": "erro", "allow": "", "methods": []})

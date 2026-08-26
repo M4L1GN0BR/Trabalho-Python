@@ -2,6 +2,7 @@
   "typeCheckingMode": "off",
   "venvPath": ".",
   "venv": ".venv",
+  "exclude": [".venv", ".venv.bak", "**/__pycache__"],
   "diagnosticSeverityOverrides": {
     "reportMissingImports": "error",
     "reportUndefinedVariable": "error",
@@ -21,7 +22,6 @@
     "reportMissingParameterType": "none",
     "reportUnusedExpression": "none",
     "reportUnusedImport": "warning",
-    "reportImplicitStringConcatenation": "none",
-    "reportMissingParameterType": "none"
+    "reportImplicitStringConcatenation": "none"
   }
 }

@@ -192,7 +192,119 @@ def build_evidence_store(semgrep_data=None, bandit_data=None, sca_data=None,
 
     # Enriquece cada evidência com a categoria OWASP Top 10
     from .owasp import enrich_evidences
-    return enrich_evidences(evidences)
+    enriched = enrich_evidences(evidences)
+
+    # Enriquece com contexto de arquivo e candidatos a falso positivo
+    return enrich_evidence_context(enriched)
+
+
+# ──────────────────────────────────────────────
+# Contexto de arquivo e falsos positivos
+# ──────────────────────────────────────────────
+
+# Marcadores de path que indicam código de teste/fixture (aprendizado
+# do estudo de caso DefectDojo: 85 chaves PGP "vazadas" estavam em
+# fixtures de teste de parsers).
+TEST_PATH_MARKERS = (
+    "test", "unittests", "fixtures", "spec", "tests/",
+    "test_", "_test", "conftest", "mock", "sample", "examples",
+)
+
+# Marcadores de função/texto que indicam uso não-criptográfico de hashes
+# (ex.: hash para chave de deduplicação — o Bandit sinaliza hashlib.md5
+# mesmo quando o hash não protege segredo algum).
+HASH_NON_SECURITY_MARKERS = (
+    "dupe", "duplicate", "dedup", "fingerprint", "cache_key",
+    "cachekey", "checksum", "hash_key", "_key", "id_key",
+)
+
+
+def is_test_file(file_path):
+    """
+    Detecta se um caminho de arquivo pertence a código de teste/fixture.
+
+    Baseado no estudo real do DefectDojo, onde dezenas de "segredos"
+    eram na verdade fixtures de teste de parsers.
+    """
+    path = str(file_path or "").replace("\\", "/").lower()
+    return any(marker in path for marker in TEST_PATH_MARKERS)
+
+
+def detect_fp_candidate(evidence):
+    """
+    Heurísticas de falso positivo por contexto.
+
+    Retorna
+    -------
+    tuple (bool, str)
+        (é_candidato, motivo). Motivo vazio = não é candidato.
+    """
+    tool = str(evidence.get("tool", "")).lower()
+    title = str(evidence.get("title", "")).lower()
+    function = str(evidence.get("function", "")).lower()
+    evidence_text = str(evidence.get("evidence", "")).lower()
+    file_path = str(evidence.get("file", "")).lower()
+    category = str(evidence.get("category", "")).lower()
+    code = str(evidence.get("code_snippet", "")).lower()
+
+    combined = " ".join([title, function, evidence_text, code])
+
+    # 1. Hash usado para deduplicação/chave (não criptografia)
+    if ("hashlib" in combined or "md5" in combined or "sha1" in combined):
+        for marker in HASH_NON_SECURITY_MARKERS:
+            if marker in combined:
+                return True, "Hash usado para chave/deduplicação, não para criptografia"
+
+    # 2. Bind em 0.0.0.0 dentro de parsers de dados (não é serviço de rede)
+    if "0.0.0.0" in combined and ("parser" in file_path or "parser" in category or "import" in title):
+        return True, "Bind 0.0.0.0 em parser/integração de dados, não em serviço exposto"
+
+    # 3. Segredos em arquivos de teste/fixture
+    if is_test_file(evidence.get("file")):
+        return True, "Arquivo de teste/fixture (provável dado simulado)"
+
+    # 4. mark_safe em widgets/forms (HTML gerado pelo framework, escapado)
+    if "mark_safe" in combined and ("form" in file_path or "widget" in file_path):
+        return True, "mark_safe em form/widget com HTML gerado pelo framework"
+
+    return False, ""
+
+
+def enrich_evidence_context(evidences):
+    """
+    Adiciona contexto de arquivo, candidatos a falso positivo e descrições
+    humanizadas (pt-BR) a cada evidência.
+
+    Campos adicionados:
+    - in_test_file (bool): achado em código de teste/fixture
+    - fp_candidate (bool): provável falso positivo por contexto
+    - fp_reason (str): motivo da heurística
+    - title_pt (str): título legível em português
+    - evidence_pt (str): descrição legível em português
+    """
+    from .mensagens_pt import humanize
+
+    enriched = []
+    for ev in evidences:
+        ev = dict(ev)
+        ev["in_test_file"] = is_test_file(ev.get("file"))
+        candidate, reason = detect_fp_candidate(ev)
+        ev["fp_candidate"] = candidate
+        ev["fp_reason"] = reason
+        title_pt, evidence_pt = humanize(
+            ev.get("tool"), ev.get("title"), ev.get("evidence")
+        )
+        ev["title_pt"] = title_pt
+        ev["evidence_pt"] = evidence_pt
+        enriched.append(ev)
+    return enriched
+
+
+# Compatibilidade: contagem considerando contexto (ignora FPs prováveis)
+def count_by_severity_active(evidences):
+    """Conta severidade ignorando candidatos a falso positivo por contexto."""
+    active = [e for e in evidences if not e.get("fp_candidate")]
+    return count_by_severity(active), len(evidences) - len(active)
 
 
 def count_by_tool(evidences):

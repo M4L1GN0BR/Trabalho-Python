@@ -5,7 +5,9 @@ Login, header, sidebar, cards e estados vazios. Tudo que é renderização
 pura fica aqui, fora do app.py.
 """
 
+import html
 import json
+import textwrap
 
 import pandas as pd
 import streamlit as st
@@ -13,6 +15,24 @@ import streamlit as st
 from dashboard.state import process_consolidated_report
 from dashboard.theme import ENTERPRISE_CSS, LOGIN_CSS
 from src.core.auth import ROLE_LABELS, register_login, verify_login
+
+
+def md_html(html):
+    """
+    Renderiza HTML via st.markdown com unsafe_allow_html=True.
+
+    Aplica textwrap.dedent para remover a indentação do f-string: o parser
+    de Markdown do Streamlit trata linhas com 4+ espaços como bloco de
+    código, exibindo o HTML como texto cru.
+    """
+    return st.markdown(textwrap.dedent(html), unsafe_allow_html=True)
+
+
+def _esc(value):
+    """Escapa HTML de valores externos (dados de relatórios/scans) antes da interpolação."""
+    if value is None:
+        return ""
+    return html.escape(str(value), quote=True)
 
 
 def logout():
@@ -56,7 +76,7 @@ def render_login_page():
                     st.error("Usuário ou senha inválidos.")
 
     st.markdown(
-        '<div class="login-footer">FIAP - ASPM Enterprise · Credenciais padrão: admin / admin</div>',
+        '<div class="login-footer">FIAP - ASPM Enterprise · Acesso restrito a usuários autorizados.</div>',
         unsafe_allow_html=True,
     )
 
@@ -143,12 +163,12 @@ def render_compact_cards(
             <div class="enterprise-card" style="padding: 0.95rem 1rem; margin-bottom: 0.65rem;">
                 <div style="display: flex; justify-content: space-between; gap: 1rem; align-items: center;">
                     <div>
-                        <div style="font-weight: 900; color: #f8fafc; font-size: 1rem;">{title}</div>
-                        <div style="color: #94a3b8; font-size: 0.84rem; margin-top: 0.25rem;">{subtitle} | {status}</div>
-                        <div style="color: #cbd5e1; font-size: 0.80rem; margin-top: 0.35rem;">{evidencias}</div>
+                        <div style="font-weight: 900; color: #f8fafc; font-size: 1rem;">{_esc(title)}</div>
+                        <div style="color: #94a3b8; font-size: 0.84rem; margin-top: 0.25rem;">{_esc(subtitle)} | {_esc(status)}</div>
+                        <div style="color: #cbd5e1; font-size: 0.80rem; margin-top: 0.35rem;">{_esc(evidencias)}</div>
                     </div>
                     <div style="color: #cbd5e1; font-weight: 800; font-size: 0.86rem; white-space: nowrap;">
-                        {prioridade}
+                        {_esc(prioridade)}
                     </div>
                 </div>
             </div>
@@ -286,15 +306,15 @@ def render_history_cards(history_df):
             <div class="enterprise-card" style="padding: 1rem 1.15rem; margin-bottom: 0.75rem;">
                 <div style="display: flex; justify-content: space-between; gap: 1rem; align-items: center;">
                     <div>
-                        <div style="font-weight: 900; color: #f8fafc; font-size: 1rem;">{url}</div>
-                        <div style="color: #94a3b8; font-size: 0.84rem; margin-top: 0.25rem;">{created_at}</div>
+                        <div style="font-weight: 900; color: #f8fafc; font-size: 1rem;">{_esc(url)}</div>
+                        <div style="color: #94a3b8; font-size: 0.84rem; margin-top: 0.25rem;">{_esc(created_at)}</div>
                         <div style="color: #cbd5e1; font-size: 0.82rem; margin-top: 0.45rem;">
-                            Alta: {high_count} | Média: {medium_count} | Baixa: {low_count}
+                            Alta: {_esc(high_count)} | Média: {_esc(medium_count)} | Baixa: {_esc(low_count)}
                         </div>
                     </div>
                     <div style="text-align: right;">
-                        <div style="font-size: 1.75rem; color: {tone_color}; font-weight: 950; line-height: 1;">{score}</div>
-                        <div style="color: #cbd5e1; font-size: 0.84rem; margin-top: 0.35rem;">{classification}</div>
+                        <div style="font-size: 1.75rem; color: {tone_color}; font-weight: 950; line-height: 1;">{_esc(score)}</div>
+                        <div style="color: #cbd5e1; font-size: 0.84rem; margin-top: 0.35rem;">{_esc(classification)}</div>
                     </div>
                 </div>
             </div>
@@ -361,12 +381,12 @@ def render_table_as_cards(
             <div class="enterprise-card" style="padding: 1rem 1.15rem; margin-bottom: 0.75rem;">
                 <div style="display: flex; justify-content: space-between; gap: 1rem; align-items: flex-start;">
                     <div style="max-width: 82%;">
-                        <div style="font-weight: 950; color: #f8fafc; font-size: 1rem;">{title}</div>
-                        <div style="color: #94a3b8; font-size: 0.84rem; margin-top: 0.35rem;">{subtitle}</div>
-                        <div style="color: #cbd5e1; font-size: 0.84rem; margin-top: 0.55rem; line-height: 1.45;">{description}</div>
+                        <div style="font-weight: 950; color: #f8fafc; font-size: 1rem;">{_esc(title)}</div>
+                        <div style="color: #94a3b8; font-size: 0.84rem; margin-top: 0.35rem;">{_esc(subtitle)}</div>
+                        <div style="color: #cbd5e1; font-size: 0.84rem; margin-top: 0.55rem; line-height: 1.45;">{_esc(description)}</div>
                     </div>
                     <div style="color: {badge_color}; font-weight: 950; font-size: 0.9rem; white-space: nowrap;">
-                        {badge}
+                        {_esc(badge)}
                     </div>
                 </div>
             </div>

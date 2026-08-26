@@ -161,22 +161,38 @@ def scan_bandit(repo_path):
 
     print(f"  ℹ {len(py_files)} arquivos .py para escanear")
 
-    stdout, stderr, code = run(
-        ["bandit", "-f", "json"] + py_files,
-        timeout=120,
-    )
-    if not stdout:
-        print(f"  [!] Bandit falhou: {stderr[:200] if stderr else 'sem saída'}")
+    # Divisão em lotes: no Windows, linhas de comando muito longas estouram
+    # o limite do SO (~32k chars) e o processo falha silenciosamente.
+    # Ex.: 2.000 arquivos .py numa única chamada do Bandit.
+    BATCH_SIZE = 80
+    batches = [
+        py_files[i : i + BATCH_SIZE] for i in range(0, len(py_files), BATCH_SIZE)
+    ]
+
+    all_results = []
+    for idx, batch in enumerate(batches, start=1):
+        stdout, stderr, code = run(
+            ["bandit", "-f", "json", "-q"] + batch,
+            timeout=180,
+        )
+        if not stdout:
+            print(
+                f"  [!] Lote {idx}/{len(batches)} falhou: "
+                f"{stderr[:120] if stderr else 'sem saída'}"
+            )
+            continue
+        try:
+            data = json.loads(stdout)
+            all_results.extend(data.get("results", []))
+        except json.JSONDecodeError:
+            print(f"  [!] Lote {idx}/{len(batches)} retornou JSON inválido")
+
+    if not all_results:
+        print("  [!] Bandit não retornou achados em nenhum lote")
         return {"results": []}
 
-    try:
-        data = json.loads(stdout)
-        n = len(data.get("results", []))
-        print(f"  [OK] {n} achados encontrados")
-        return data
-    except json.JSONDecodeError:
-        print("  [!] Resposta do Bandit não é JSON válido")
-        return {"results": []}
+    print(f"  [OK] {len(all_results)} achados encontrados em {len(batches)} lote(s)")
+    return {"results": all_results}
 
 
 def scan_pip_audit():

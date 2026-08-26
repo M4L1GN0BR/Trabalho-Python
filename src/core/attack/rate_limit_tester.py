@@ -40,18 +40,32 @@ def rate_findings(statuses):
 
     n = len(statuses)
     ok = sum(1 for s in statuses if s == 200)
-    bloqueados = sum(1 for s in statuses if s in (429, 403))
+    bloqueados = sum(1 for s in statuses if s == 429)
 
-    if any(s == 429 for s in statuses) or bloqueados >= n // 2:
+    if any(s == 429 for s in statuses):
         return [
             _finding(
                 "Rate Limit",
                 f"{n} requisições ao alvo",
                 f"Rate limit detectado ({bloqueados} bloqueadas)",
                 "Baixa",
-                f"O alvo respondeu {bloqueados} de {n} requisições com 429/403, "
+                f"O alvo respondeu {bloqueados} de {n} requisições com 429, "
                 f"indicando presença de limitação de taxa.",
                 "Controle OK",
+                [f"status codes: {_resume_statuses(statuses)}"],
+            )
+        ]
+
+    if all(s == "erro" for s in statuses):
+        return [
+            _finding(
+                "Rate Limit",
+                f"{n} requisições ao alvo",
+                "Teste inconclusivo",
+                "Baixa",
+                f"Todas as {n} requisições falharam por erro de conexão "
+                f"(alvo fora do ar/DNS), impossibilitando avaliar o rate limit.",
+                "Teste inconclusivo",
                 [f"status codes: {_resume_statuses(statuses)}"],
             )
         ]

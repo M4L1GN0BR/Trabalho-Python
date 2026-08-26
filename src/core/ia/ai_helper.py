@@ -6,10 +6,8 @@ o contexto da função e os imports, e rastreia fluxos de dados para decidir
 se existe evidência real de vulnerabilidade — em vez de confiar só no ID da regra.
 """
 
-from pathlib import Path
-
 from .deepseek_client import DEEPSEEK_API_KEY, call_deepseek
-from .context import build_vulnerability_context, format_context_for_prompt
+from ..context import _safe_resolve, build_vulnerability_context, format_context_for_prompt
 
 SYSTEM_DEEP_ANALYST = """
 Você é um analista sênior de Application Security em uma plataforma ASPM, especializado em análise profunda de código.
@@ -52,7 +50,7 @@ Responda EXATAMENTE no formato abaixo, uma linha por campo, sem markdown:
 """.strip()
 
 
-def explain_vulnerability(check_id, message, file_path=None, line_number=None):
+def explain_vulnerability(check_id, message, file_path=None, line_number=None, repo_path=None):
     """
     Analisa uma vulnerabilidade usando DeepSeek com contexto profundo do código.
 
@@ -66,6 +64,9 @@ def explain_vulnerability(check_id, message, file_path=None, line_number=None):
         Caminho do arquivo com o achado (para extrair snippet).
     line_number : int, optional
         Linha do achado.
+    repo_path : str, optional
+        Raiz do repositório escaneado; o snippet só é lido se file_path
+        estiver contido nela (caminhos absolutos ou com ".." são rejeitados).
 
     Returns
     -------
@@ -89,12 +90,13 @@ def explain_vulnerability(check_id, message, file_path=None, line_number=None):
             "prioridade_sugerida": "",
         }
 
-    # Monta contexto profundo com código-fonte
+    # Monta contexto profundo com código-fonte (com contenção de path)
     contexto = build_vulnerability_context(
         check_id=check_id,
         message=message,
         file_path=file_path,
         line_number=line_number,
+        repo_root=repo_path,
     )
 
     prompt = f"""
@@ -175,10 +177,23 @@ def explain_vulnerability_deep(check_id, message, repo_path=None, file_path=None
     """
     Wrapper de compatibilidade: se repo_path for fornecido, tenta localizar o arquivo
     relativo a ele. Mantém a assinatura antiga funcionando.
+
+    Segurança: o snippet só é enviado se o arquivo estiver contido em repo_path.
+    Caminhos absolutos ou com ".." são rejeitados sem chamar a API.
     """
-    if repo_path and file_path and not Path(file_path).exists():
-        candidate = Path(repo_path) / file_path
-        if candidate.exists():
-            file_path = str(candidate)
+    if repo_path and file_path:
+        if _safe_resolve(repo_path, file_path) is None:
+            return {
+                "explicacao": "Arquivo fora do repositório escaneado — snippet não enviado.",
+                "risco": "Análise profunda sem acesso ao código-fonte.",
+                "correcao": "Revise o achado manualmente dentro do repositório escaneado.",
+                "evidencia": "",
+                "confianca": "Nenhuma",
+                "prioridade_sugerida": "",
+            }
+
+        return explain_vulnerability(
+            check_id, message, file_path, line_number, repo_path=repo_path
+        )
 
     return explain_vulnerability(check_id, message, file_path, line_number)

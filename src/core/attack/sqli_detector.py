@@ -21,7 +21,7 @@ BOOLEAN_PAYLOADS = [
     ("1' AND '1'='1", "1' AND '1'='2"),
 ]
 
-ERROR_PAYLOADS = ["'", '"', "1'", "1) AND 1=1--", "' AND 1=CONVERT(int, @@version)--"]
+ERROR_PAYLOADS = ["'", '"', "1'", "1) AND 1=1-- -", "' AND 1=CONVERT(int, @@version)-- -"]
 
 SQL_ERROR_SIGNALS = [
     "syntax error", "mysql", "sqlite", "postgres", "psycopg2", "sqlalchemy",
@@ -29,7 +29,7 @@ SQL_ERROR_SIGNALS = [
     "microsoft odbc", "driver error", "pg_", "oracle", "sqlite3",
 ]
 
-TIME_PAYLOAD = "' OR SLEEP(3)--"
+TIME_PAYLOAD = "' OR SLEEP(3)-- -"
 
 
 def _get(url, param, payload, timeout):
@@ -55,25 +55,35 @@ def sqli_detection_test(url, param="id", timeout=6):
     Retorna dict com baseline, booleans, errors e time_based.
     """
     baseline = _get(url, param, "1", timeout)
+    baseline_signals = [
+        s for s in SQL_ERROR_SIGNALS if s in baseline["body"].lower()
+    ]
 
     booleans = []
     for true_p, false_p in BOOLEAN_PAYLOADS:
         r_true = _get(url, param, true_p, timeout)
         r_false = _get(url, param, false_p, timeout)
-        booleans.append(
-            {
-                "true": true_p,
-                "len_true": r_true["len"],
-                "false": false_p,
-                "len_false": r_false["len"],
-                "diff": abs(r_true["len"] - r_false["len"]),
-            }
-        )
+        # descarta pares em que alguma resposta falhou/errou (len=0 geraria
+        # falso positivo de diff)
+        if r_true["status"] == 200 and r_false["status"] == 200:
+            booleans.append(
+                {
+                    "true": true_p,
+                    "len_true": r_true["len"],
+                    "false": false_p,
+                    "len_false": r_false["len"],
+                    "diff": abs(r_true["len"] - r_false["len"]),
+                }
+            )
 
     errors = []
     for payload in ERROR_PAYLOADS:
         r = _get(url, param, payload, timeout)
-        signals = [s for s in SQL_ERROR_SIGNALS if s in r["body"].lower()]
+        # só reporta sinais que aparecem com payload e não no baseline
+        signals = [
+            s for s in SQL_ERROR_SIGNALS
+            if s in r["body"].lower() and s not in baseline_signals
+        ]
         errors.append({"payload": payload, "signals": signals})
 
     start = time.time()
@@ -100,7 +110,7 @@ def sqli_findings(results):
     error_hits = [e for e in results.get("errors", []) if e.get("signals")]
     tb = results.get("time_based", {})
     time_hit = (
-        tb.get("status") != "timeout"
+        tb.get("status") == 200
         and isinstance(tb.get("elapsed"), (int, float))
         and tb["elapsed"] >= 2.5
     )

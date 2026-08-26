@@ -9,8 +9,77 @@ Isso dá à IA material para rastrear fluxos de dados e encontrar evidências re
 import re
 from pathlib import Path
 
+# Limite máximo de bytes lidos de um arquivo para análise (64 KB).
+MAX_SNIPPET_BYTES = 64 * 1024
 
-def extract_code_snippet(file_path, line_number, radius=10):
+
+def _safe_resolve(repo_root, file_path):
+    """
+    Resolve um caminho de arquivo garantindo que ele fique contido no repositório.
+
+    Regras de contenção (anti path traversal):
+    - Caminhos absolutos (ex.: "C:\\...", "/etc/...") são rejeitados.
+    - Qualquer parte do caminho igual a ".." é rejeitada.
+    - O caminho final precisa estar dentro de repo_root (ou do diretório de
+      trabalho atual, se repo_root for None).
+
+    Retorna
+    -------
+    Path or None
+        Caminho absoluto contido no repositório, ou None se rejeitado.
+    """
+    if not file_path:
+        return None
+
+    path = Path(file_path)
+
+    # Rejeita caminhos absolutos (ex.: C:\Users\... ou /etc/passwd).
+    if path.is_absolute():
+        return None
+
+    # Rejeita path traversal: qualquer parte do caminho igual a "..".
+    if any(part == ".." for part in path.parts):
+        return None
+
+    base = Path(repo_root).resolve() if repo_root else Path.cwd().resolve()
+
+    try:
+        candidate = (base / path).resolve()
+    except (OSError, ValueError, RuntimeError):
+        return None
+
+    if not candidate.is_relative_to(base):
+        return None
+
+    return candidate
+
+
+def _read_file_safe(repo_root, file_path, max_bytes=MAX_SNIPPET_BYTES):
+    """
+    Lê o conteúdo de um arquivo com contenção de path e limite de tamanho.
+
+    Retorna
+    -------
+    (str or None, bool)
+        Tupla com o conteúdo (possivelmente truncado em max_bytes) e um
+        indicador de truncamento. Conteúdo None indica arquivo rejeitado,
+        inexistente ou ilegível (sem levantar exceção).
+    """
+    candidate = _safe_resolve(repo_root, file_path)
+    if candidate is None:
+        return None, False
+
+    try:
+        if candidate.stat().st_size > max_bytes:
+            # Arquivo grande demais: lê apenas o início, sem carregar tudo.
+            with candidate.open("r", encoding="utf-8", errors="replace") as fh:
+                return fh.read(max_bytes), True
+        return candidate.read_text(encoding="utf-8", errors="replace"), False
+    except (OSError, ValueError):
+        return None, False
+
+
+def extract_code_snippet(file_path, line_number, radius=10, repo_root=None):
     """
     Extrai um snippet de código ao redor de uma linha.
 
@@ -22,21 +91,22 @@ def extract_code_snippet(file_path, line_number, radius=10):
         Linha do achado.
     radius : int
         Quantas linhas antes/depois incluir.
+    repo_root : str, optional
+        Raiz do repositório escaneado. Se None, usa o diretório de trabalho
+        atual como base. Caminhos absolutos e com ".." são rejeitados.
 
     Retorna
     -------
     str
-        Snippet formatado com números de linha, ou "" se arquivo não existir.
+        Snippet formatado com números de linha, ou "" se o arquivo for
+        rejeitado, não existir, exceder o limite de tamanho ou não puder
+        ser lido.
     """
-    path = Path(file_path)
-    if not path.exists():
+    content, truncated = _read_file_safe(repo_root, file_path)
+    if content is None:
         return ""
 
-    try:
-        lines = path.read_text(encoding="utf-8", errors="replace").splitlines()
-    except OSError:
-        return ""
-
+    lines = content.splitlines()
     if not lines:
         return ""
 
@@ -48,26 +118,37 @@ def extract_code_snippet(file_path, line_number, radius=10):
         marker = ">>>" if (i + 1) == line_number else "   "
         snippet.append(f"{marker} {i + 1:4d} | {lines[i]}")
 
-    return "\n".join(snippet)
+    texto = "\n".join(snippet)
+    if truncated:
+        texto += "\n[aviso: arquivo excede 64 KB — snippet truncado]"
+
+    return texto
 
 
-def extract_function_context(file_path, line_number):
+def extract_function_context(file_path, line_number, repo_root=None):
     """
     Encontra a função/classe que contém a linha.
+
+    Parâmetros
+    ----------
+    file_path : str
+        Caminho do arquivo.
+    line_number : int
+        Linha do achado.
+    repo_root : str, optional
+        Raiz do repositório escaneado (mesma regra de contenção de
+        extract_code_snippet).
 
     Retorna
     -------
     dict
         {"funcao": str, "classe": str, "arquivo": str}
     """
-    path = Path(file_path)
-    if not path.exists():
+    content, _ = _read_file_safe(repo_root, file_path)
+    if content is None:
         return {"funcao": "?", "classe": "", "arquivo": str(file_path)}
 
-    try:
-        lines = path.read_text(encoding="utf-8", errors="replace").splitlines()
-    except OSError:
-        return {"funcao": "?", "classe": "", "arquivo": str(file_path)}
+    lines = content.splitlines()
 
     funcao_atual = "?"
     classe_atual = ""
@@ -96,23 +177,29 @@ def extract_function_context(file_path, line_number):
     }
 
 
-def extract_imports(file_path, limit=15):
+def extract_imports(file_path, limit=15, repo_root=None):
     """
     Extrai os imports do arquivo.
+
+    Parâmetros
+    ----------
+    file_path : str
+        Caminho do arquivo.
+    limit : int
+        Máximo de imports retornados.
+    repo_root : str, optional
+        Raiz do repositório escaneado (mesma regra de contenção).
 
     Retorna
     -------
     str
         Lista de imports como texto, ou "" se não houver.
     """
-    path = Path(file_path)
-    if not path.exists():
+    content, _ = _read_file_safe(repo_root, file_path)
+    if content is None:
         return ""
 
-    try:
-        lines = path.read_text(encoding="utf-8", errors="replace").splitlines()
-    except OSError:
-        return ""
+    lines = content.splitlines()
 
     imports = []
     for line in lines:
@@ -125,7 +212,7 @@ def extract_imports(file_path, limit=15):
     return "\n".join(imports)
 
 
-def build_vulnerability_context(check_id, message, file_path=None, line_number=None, radius=12):
+def build_vulnerability_context(check_id, message, file_path=None, line_number=None, radius=12, repo_root=None):
     """
     Monta o contexto completo de uma vulnerabilidade para envio à IA.
 
@@ -141,6 +228,8 @@ def build_vulnerability_context(check_id, message, file_path=None, line_number=N
         Linha do achado.
     radius : int
         Raio do snippet.
+    repo_root : str, optional
+        Raiz do repositório escaneado (mesma regra de contenção).
 
     Retorna
     -------
@@ -162,11 +251,11 @@ def build_vulnerability_context(check_id, message, file_path=None, line_number=N
         except (TypeError, ValueError):
             return contexto
 
-        contexto["snippet"] = extract_code_snippet(file_path, line_number, radius)
-        ctx_func = extract_function_context(file_path, line_number)
+        contexto["snippet"] = extract_code_snippet(file_path, line_number, radius, repo_root)
+        ctx_func = extract_function_context(file_path, line_number, repo_root)
         contexto["funcao"] = ctx_func["funcao"]
         contexto["classe"] = ctx_func["classe"]
-        contexto["imports"] = extract_imports(file_path)
+        contexto["imports"] = extract_imports(file_path, repo_root=repo_root)
 
     return contexto
 

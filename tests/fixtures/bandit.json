@@ -1,0 +1,230 @@
+{
+  "results": [
+    {
+      "code": "6 import logging\n7 import subprocess\n8 \n",
+      "col_offset": 0,
+      "end_col_offset": 17,
+      "filename": "C:\\Users\\AMD\\AppData\\Local\\Temp\\defectdojo\\docker\\install_chrome_dependencies.py",
+      "issue_confidence": "HIGH",
+      "issue_cwe": {
+        "id": 78,
+        "link": "https://cwe.mitre.org/data/definitions/78.html"
+      },
+      "issue_severity": "LOW",
+      "issue_text": "Consider possible security implications associated with the subprocess module.",
+      "line_number": 7,
+      "line_range": [
+        7
+      ],
+      "more_info": "https://bandit.readthedocs.io/en/1.9.4/blacklists/blacklist_imports.html#b404-import-subprocess",
+      "test_id": "B404",
+      "test_name": "blacklist"
+    },
+    {
+      "code": "27     # Do not raise exception here because some commands are too loose with negative exit codes\n28     result = subprocess.run(cmd, cwd=cwd, env=env, capture_output=True, text=True, check=False)\n29     return result.stdout.strip(), result.stderr.strip(), result.returncode\n",
+      "col_offset": 13,
+      "end_col_offset": 95,
+      "filename": "C:\\Users\\AMD\\AppData\\Local\\Temp\\defectdojo\\docker\\install_chrome_dependencies.py",
+      "issue_confidence": "HIGH",
+      "issue_cwe": {
+        "id": 78,
+        "link": "https://cwe.mitre.org/data/definitions/78.html"
+      },
+      "issue_severity": "LOW",
+      "issue_text": "subprocess call - check for execution of untrusted input.",
+      "line_number": 28,
+      "line_range": [
+        28
+      ],
+      "more_info": "https://bandit.readthedocs.io/en/1.9.4/plugins/b603_subprocess_without_shell_equals_true.html",
+      "test_id": "B603",
+      "test_name": "subprocess_without_shell_equals_true"
+    },
+    {
+      "code": "168         with connection.cursor() as cursor:\n169             cursor.execute(f\"SELECT COUNT(*) FROM {table_name}\")\n170             total_count = cursor.fetchone()[0]\n",
+      "col_offset": 27,
+      "end_col_offset": 63,
+      "filename": "C:\\Users\\AMD\\AppData\\Local\\Temp\\defectdojo\\dojo\\auditlog\\backfill.py",
+      "issue_confidence": "MEDIUM",
+      "issue_cwe": {
+        "id": 89,
+        "link": "https://cwe.mitre.org/data/definitions/89.html"
+      },
+      "issue_severity": "MEDIUM",
+      "issue_text": "Possible SQL injection vector through string-based query construction.",
+      "line_number": 169,
+      "line_range": [
+        169
+      ],
+      "more_info": "https://bandit.readthedocs.io/en/1.9.4/plugins/b608_hardcoded_sql_expressions.html",
+      "test_id": "B608",
+      "test_name": "hardcoded_sql_expressions"
+    },
+    {
+      "code": "142 \n143         return mark_safe(\"\\n\".join(output))\n144 \n",
+      "col_offset": 15,
+      "end_col_offset": 43,
+      "filename": "C:\\Users\\AMD\\AppData\\Local\\Temp\\defectdojo\\dojo\\forms.py",
+      "issue_confidence": "HIGH",
+      "issue_cwe": {
+        "id": 80,
+        "link": "https://cwe.mitre.org/data/definitions/80.html"
+      },
+      "issue_severity": "MEDIUM",
+      "issue_text": "Potential XSS on mark_safe function.",
+      "line_number": 143,
+      "line_range": [
+        143
+      ],
+      "more_info": "https://bandit.readthedocs.io/en/1.9.4/plugins/b703_django_mark_safe.html",
+      "test_id": "B703",
+      "test_name": "django_mark_safe"
+    },
+    {
+      "code": "460     def get_status(pass_fail):\n461         if pass_fail == \"Pass\":  # noqa: S105\n462             return \"success\"\n",
+      "col_offset": 24,
+      "end_col_offset": 30,
+      "filename": "C:\\Users\\AMD\\AppData\\Local\\Temp\\defectdojo\\dojo\\models.py",
+      "issue_confidence": "MEDIUM",
+      "issue_cwe": {
+        "id": 259,
+        "link": "https://cwe.mitre.org/data/definitions/259.html"
+      },
+      "issue_severity": "LOW",
+      "issue_text": "Possible hardcoded password: 'Pass'",
+      "line_number": 461,
+      "line_range": [
+        461
+      ],
+      "more_info": "https://bandit.readthedocs.io/en/1.9.4/plugins/b105_hardcoded_password_string.html",
+      "test_id": "B105",
+      "test_name": "hardcoded_password_string"
+    },
+    {
+      "code": "15                 ss.save()\n16         except Exception as e:\n17             # probably a test run such as running unittest, no values in table\n18             pass\n19 \n",
+      "col_offset": 8,
+      "end_col_offset": 16,
+      "filename": "C:\\Users\\AMD\\AppData\\Local\\Temp\\defectdojo\\dojo\\db_migrations\\0047_jira_minimum_severity_default.py",
+      "issue_confidence": "HIGH",
+      "issue_cwe": {
+        "id": 703,
+        "link": "https://cwe.mitre.org/data/definitions/703.html"
+      },
+      "issue_severity": "LOW",
+      "issue_text": "Try, Except, Pass detected.",
+      "line_number": 16,
+      "line_range": [
+        16,
+        17,
+        18
+      ],
+      "more_info": "https://bandit.readthedocs.io/en/1.9.4/plugins/b110_try_except_pass.html",
+      "test_id": "B110",
+      "test_name": "try_except_pass"
+    },
+    {
+      "code": "61                     location = LocationData.url(\n62                         host=\"0.0.0.0\",  # noqa: S104\n63                         path=uri,\n",
+      "col_offset": 29,
+      "end_col_offset": 38,
+      "filename": "C:\\Users\\AMD\\AppData\\Local\\Temp\\defectdojo\\dojo\\tools\\contrast\\parser.py",
+      "issue_confidence": "MEDIUM",
+      "issue_cwe": {
+        "id": 605,
+        "link": "https://cwe.mitre.org/data/definitions/605.html"
+      },
+      "issue_severity": "MEDIUM",
+      "issue_text": "Possible binding to all interfaces.",
+      "line_number": 62,
+      "line_range": [
+        62
+      ],
+      "more_info": "https://bandit.readthedocs.io/en/1.9.4/plugins/b104_hardcoded_bind_all_interfaces.html",
+      "test_id": "B104",
+      "test_name": "hardcoded_bind_all_interfaces"
+    },
+    {
+      "code": "24             username=\"delete_authz_delegate\",\n25             password=\"not-a-real-secret\",  # noqa: S106 - test fixture user\n26         )\n27         self.delegate.user_permissions.add(\n28             Permission.objects.get(codename=\"view_user\", content_type__app_label=\"auth\"),\n29             Permission.objects.get(codename=\"change_user\", content_type__app_label=\"auth\"),\n",
+      "col_offset": 24,
+      "end_col_offset": 9,
+      "filename": "C:\\Users\\AMD\\AppData\\Local\\Temp\\defectdojo\\unittests\\test_apiv2_user_delete_authz.py",
+      "issue_confidence": "MEDIUM",
+      "issue_cwe": {
+        "id": 259,
+        "link": "https://cwe.mitre.org/data/definitions/259.html"
+      },
+      "issue_severity": "LOW",
+      "issue_text": "Possible hardcoded password: 'not-a-real-secret'",
+      "line_number": 25,
+      "line_range": [
+        23,
+        24,
+        25,
+        26
+      ],
+      "more_info": "https://bandit.readthedocs.io/en/1.9.4/plugins/b106_hardcoded_password_funcarg.html",
+      "test_id": "B106",
+      "test_name": "hardcoded_password_funcarg"
+    },
+    {
+      "code": "5 def weak_hash(value):\n6     return hashlib.md5(value.encode()).hexdigest()\n7 \n",
+      "col_offset": 11,
+      "end_col_offset": 38,
+      "filename": "C:\\Users\\AMD\\AppData\\Local\\Temp\\defectdojo\\unittests\\scans\\devskim\\crypto.py",
+      "issue_confidence": "HIGH",
+      "issue_cwe": {
+        "id": 327,
+        "link": "https://cwe.mitre.org/data/definitions/327.html"
+      },
+      "issue_severity": "HIGH",
+      "issue_text": "Use of weak MD5 hash for security. Consider usedforsecurity=False",
+      "line_number": 6,
+      "line_range": [
+        6
+      ],
+      "more_info": "https://bandit.readthedocs.io/en/1.9.4/plugins/b324_hashlib.html",
+      "test_id": "B324",
+      "test_name": "hashlib"
+    },
+    {
+      "code": "321                     parsed = parser.get_findings(handle, None)\n322             except Exception:  # noqa: S112 -- a parser/sample drift must skip, not mask the real assertions\n323                 continue\n324             emitted = 0\n",
+      "col_offset": 12,
+      "end_col_offset": 24,
+      "filename": "C:\\Users\\AMD\\AppData\\Local\\Temp\\defectdojo\\unittests\\test_vulnerability_id.py",
+      "issue_confidence": "HIGH",
+      "issue_cwe": {
+        "id": 703,
+        "link": "https://cwe.mitre.org/data/definitions/703.html"
+      },
+      "issue_severity": "LOW",
+      "issue_text": "Try, Except, Continue detected.",
+      "line_number": 322,
+      "line_range": [
+        322,
+        323
+      ],
+      "more_info": "https://bandit.readthedocs.io/en/1.9.4/plugins/b112_try_except_continue.html",
+      "test_id": "B112",
+      "test_name": "try_except_continue"
+    },
+    {
+      "code": "30             self.assertEqual(findings[0].severity, \"Low\")\n31             self.assertEqual(findings[0].file_path, \"/tmp/Deepfence/YaraHunter/df_db09257b02e615049e0aecc05be2dc2401735e67db4ab74225df777c62c39753/usr/sbin/mkfs.cramfs\")\n32 \n",
+      "col_offset": 52,
+      "end_col_offset": 168,
+      "filename": "C:\\Users\\AMD\\AppData\\Local\\Temp\\defectdojo\\unittests\\tools\\test_deepfence_threatmapper_parser.py",
+      "issue_confidence": "MEDIUM",
+      "issue_cwe": {
+        "id": 377,
+        "link": "https://cwe.mitre.org/data/definitions/377.html"
+      },
+      "issue_severity": "MEDIUM",
+      "issue_text": "Probable insecure usage of temp file/directory.",
+      "line_number": 31,
+      "line_range": [
+        31
+      ],
+      "more_info": "https://bandit.readthedocs.io/en/1.9.4/plugins/b108_hardcoded_tmp_directory.html",
+      "test_id": "B108",
+      "test_name": "hardcoded_tmp_directory"
+    }
+  ]
+}

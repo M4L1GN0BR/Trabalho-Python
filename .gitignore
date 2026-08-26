@@ -4,6 +4,9 @@
 # Banco de dados local
 data/history.db
 
+# Artefatos de scan gerados (regeneráveis via run_defectdojo.py)
+data/defectdojo-scan/
+
 # Python
 __pycache__/
 *.pyc
@@ -13,6 +16,7 @@ __pycache__/
 
 # Virtualenv
 .venv/
+.venv.bak/
 venv/
 env/
 

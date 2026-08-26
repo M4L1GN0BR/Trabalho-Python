@@ -1,0 +1,600 @@
+{
+  "results": [
+    {
+      "check_id": "package_managers.dependabot.dependabot-missing-cooldown.dependabot-missing-cooldown",
+      "path": "C:\\Users\\AMD\\AppData\\Local\\Temp\\defectdojo\\.github\\dependabot.yml",
+      "start": {
+        "line": 3,
+        "col": 3,
+        "offset": 22
+      },
+      "end": {
+        "line": 17,
+        "col": 49,
+        "offset": 342
+      },
+      "extra": {
+        "message": "This Dependabot configuration does not set a cooldown period. Newly published packages can be malicious or unstable. Add a `cooldown` block with `default-days: 7` to each `package-ecosystem` entry under `updates` to wait 7 days before proposing updates to newly published package versions. Reference: https://docs.github.com/en/code-security/dependabot/dependabot-version-updates/configuration-options-for-the-dependabot.yml-file#cooldown",
+        "metadata": {
+          "category": "security",
+          "technology": [
+            "dependabot"
+          ],
+          "cwe": [
+            "CWE-829: Inclusion of Functionality from Untrusted Control Sphere"
+          ],
+          "owasp": [
+            "A08:2021 - Software and Data Integrity Failures"
+          ],
+          "confidence": "HIGH",
+          "likelihood": "LOW",
+          "impact": "HIGH",
+          "subcategory": [
+            "audit"
+          ],
+          "vulnerability_class": [
+            "Insecure Configuration"
+          ],
+          "references": [
+            "https://docs.github.com/en/code-security/dependabot/dependabot-version-updates/configuration-options-for-the-dependabot.yml-file#cooldown"
+          ],
+          "license": "Semgrep Rules License v1.0. For more details, visit semgrep.dev/legal/rules-license",
+          "source": "https://semgrep.dev/r/package_managers.dependabot.dependabot-missing-cooldown.dependabot-missing-cooldown",
+          "shortlink": "https://sg.run/5WvGK"
+        },
+        "severity": "MEDIUM",
+        "fingerprint": "requires login",
+        "lines": "requires login",
+        "validation_state": "NO_VALIDATOR",
+        "engine_kind": "OSS"
+      }
+    },
+    {
+      "check_id": "package_managers.renovate.renovate-missing-minimum-release-age.renovate-missing-minimum-release-age",
+      "path": "C:\\Users\\AMD\\AppData\\Local\\Temp\\defectdojo\\.github\\renovate.json",
+      "start": {
+        "line": 22,
+        "col": 20,
+        "offset": 565
+      },
+      "end": {
+        "line": 27,
+        "col": 4,
+        "offset": 857
+      },
+      "extra": {
+        "message": "This Renovate configuration does not set a minimum release age. Newly published packages can be malicious or unstable. Add `\"minimumReleaseAge\": \"7 days\"` within a `packageRules` entry to wait 7 days before proposing updates to newly published package versions. Set `\"minimumReleaseAge\": false` to set an exception for minimal release age for the package rule. Added in: v42",
+        "metadata": {
+          "category": "security",
+          "technology": [
+            "renovate"
+          ],
+          "cwe": [
+            "CWE-829: Inclusion of Functionality from Untrusted Control Sphere"
+          ],
+          "owasp": [
+            "A08:2021 - Software and Data Integrity Failures"
+          ],
+          "confidence": "HIGH",
+          "likelihood": "LOW",
+          "impact": "HIGH",
+          "subcategory": [
+            "audit"
+          ],
+          "vulnerability_class": [
+            "Insecure Configuration"
+          ],
+          "references": [
+            "https://docs.renovatebot.com/configuration-options/#minimumreleaseage"
+          ],
+          "license": "Semgrep Rules License v1.0. For more details, visit semgrep.dev/legal/rules-license",
+          "source": "https://semgrep.dev/r/package_managers.renovate.renovate-missing-minimum-release-age.renovate-missing-minimum-release-age",
+          "shortlink": "https://sg.run/D8l2q"
+        },
+        "severity": "MEDIUM",
+        "fingerprint": "requires login",
+        "lines": "requires login",
+        "validation_state": "NO_VALIDATOR",
+        "engine_kind": "OSS"
+      }
+    },
+    {
+      "check_id": "yaml.github-actions.security.run-shell-injection.run-shell-injection",
+      "path": "C:\\Users\\AMD\\AppData\\Local\\Temp\\defectdojo\\.github\\workflows\\build-docker-images-for-testing.yml",
+      "start": {
+        "line": 37,
+        "col": 9,
+        "offset": 1103
+      },
+      "end": {
+        "line": 41,
+        "col": 2,
+        "offset": 1239
+      },
+      "extra": {
+        "message": "Using variable interpolation `${{...}}` with `github` context data in a `run:` step could allow an attacker to inject their own code into the runner. This would allow them to steal secrets and code. `github` context data can have arbitrary user input and should be treated as untrusted. Instead, use an intermediate environment variable with `env:` to store the data and use the environment variable in the `run:` script. Be sure to use double-quotes the environment variable, like this: \"$ENVVAR\".",
+        "metadata": {
+          "category": "security",
+          "cwe": [
+            "CWE-78: Improper Neutralization of Special Elements used in an OS Command ('OS Command Injection')"
+          ],
+          "owasp": [
+            "A01:2017 - Injection",
+            "A03:2021 - Injection",
+            "A05:2025 - Injection"
+          ],
+          "references": [
+            "https://docs.github.com/en/actions/learn-github-actions/security-hardening-for-github-actions#understanding-the-risk-of-script-injections",
+            "https://securitylab.github.com/research/github-actions-untrusted-input/"
+          ],
+          "technology": [
+            "github-actions"
+          ],
+          "cwe2022-top25": true,
+          "cwe2021-top25": true,
+          "subcategory": [
+            "vuln"
+          ],
+          "likelihood": "HIGH",
+          "impact": "HIGH",
+          "confidence": "HIGH",
+          "license": "Semgrep Rules License v1.0. For more details, visit semgrep.dev/legal/rules-license",
+          "vulnerability_class": [
+            "Command Injection"
+          ],
+          "source": "https://semgrep.dev/r/yaml.github-actions.security.run-shell-injection.run-shell-injection",
+          "shortlink": "https://sg.run/pkzk"
+        },
+        "severity": "ERROR",
+        "fingerprint": "requires login",
+        "lines": "requires login",
+        "validation_state": "NO_VALIDATOR",
+        "engine_kind": "OSS"
+      }
+    },
+    {
+      "check_id": "yaml.github-actions.security.secrets-inherit.secrets-inherit",
+      "path": "C:\\Users\\AMD\\AppData\\Local\\Temp\\defectdojo\\.github\\workflows\\release-2-tag-docker-push.yml",
+      "start": {
+        "line": 47,
+        "col": 5,
+        "offset": 1439
+      },
+      "end": {
+        "line": 47,
+        "col": 21,
+        "offset": 1455
+      },
+      "extra": {
+        "message": "This workflow uses `secrets: inherit` to pass all of the calling workflow's secrets to a reusable workflow. This violates the principle of least privilege because the called workflow receives access to every secret in the repository, not just the ones it needs. If the called workflow is compromised or sourced from a third party, an attacker gains access to all repository secrets. Instead, explicitly pass only the secrets that the called workflow requires using the `secrets:` map, e.g. `secrets: { MY_SECRET: ${{ secrets.MY_SECRET }} }`.",
+        "metadata": {
+          "category": "security",
+          "cwe": [
+            "CWE-250: Execution with Unnecessary Privileges"
+          ],
+          "owasp": [
+            "A01:2021 - Broken Access Control",
+            "A01:2025 - Broken Access Control"
+          ],
+          "references": [
+            "https://docs.github.com/en/actions/sharing-automations/reusing-workflows#passing-inputs-and-secrets-to-a-reusable-workflow",
+            "https://docs.github.com/en/actions/security-for-github-actions/security-guides/security-hardening-for-github-actions"
+          ],
+          "technology": [
+            "github-actions"
+          ],
+          "subcategory": [
+            "vuln"
+          ],
+          "likelihood": "MEDIUM",
+          "impact": "HIGH",
+          "confidence": "HIGH",
+          "license": "Semgrep Rules License v1.0. For more details, visit semgrep.dev/legal/rules-license",
+          "vulnerability_class": [
+            "Improper Authorization"
+          ],
+          "source": "https://semgrep.dev/r/yaml.github-actions.security.secrets-inherit.secrets-inherit",
+          "shortlink": "https://sg.run/X2PZB"
+        },
+        "severity": "ERROR",
+        "fingerprint": "requires login",
+        "lines": "requires login",
+        "validation_state": "NO_VALIDATOR",
+        "engine_kind": "OSS"
+      }
+    },
+    {
+      "check_id": "yaml.github-actions.security.github-script-injection.github-script-injection",
+      "path": "C:\\Users\\AMD\\AppData\\Local\\Temp\\defectdojo\\.github\\workflows\\release-3-master-into-dev.yml",
+      "start": {
+        "line": 101,
+        "col": 11,
+        "offset": 4410
+      },
+      "end": {
+        "line": 116,
+        "col": 2,
+        "offset": 5082
+      },
+      "extra": {
+        "message": "Using variable interpolation `${{...}}` with `github` context data in a `actions/github-script`'s `script:` step could allow an attacker to inject their own code into the runner. This would allow them to steal secrets and code. `github` context data can have arbitrary user input and should be treated as untrusted. Instead, use an intermediate environment variable with `env:` to store the data and use the environment variable in the `run:` script. Be sure to use double-quotes the environment variable, like this: \"$ENVVAR\".",
+        "metadata": {
+          "category": "security",
+          "cwe": [
+            "CWE-94: Improper Control of Generation of Code ('Code Injection')"
+          ],
+          "owasp": [
+            "A03:2021 - Injection",
+            "A05:2025 - Injection"
+          ],
+          "references": [
+            "https://docs.github.com/en/actions/learn-github-actions/security-hardening-for-github-actions#understanding-the-risk-of-script-injections",
+            "https://securitylab.github.com/research/github-actions-untrusted-input/",
+            "https://github.com/actions/github-script"
+          ],
+          "technology": [
+            "github-actions"
+          ],
+          "cwe2022-top25": true,
+          "subcategory": [
+            "vuln"
+          ],
+          "likelihood": "HIGH",
+          "impact": "HIGH",
+          "confidence": "HIGH",
+          "license": "Semgrep Rules License v1.0. For more details, visit semgrep.dev/legal/rules-license",
+          "vulnerability_class": [
+            "Code Injection"
+          ],
+          "source": "https://semgrep.dev/r/yaml.github-actions.security.github-script-injection.github-script-injection",
+          "shortlink": "https://sg.run/g1G0"
+        },
+        "severity": "ERROR",
+        "fingerprint": "requires login",
+        "lines": "requires login",
+        "validation_state": "NO_VALIDATOR",
+        "engine_kind": "OSS"
+      }
+    },
+    {
+      "check_id": "generic.secrets.security.detected-generic-api-key.detected-generic-api-key",
+      "path": "C:\\Users\\AMD\\AppData\\Local\\Temp\\defectdojo\\docs\\assets\\js\\docsearch.js",
+      "start": {
+        "line": 7,
+        "col": 5,
+        "offset": 150
+      },
+      "end": {
+        "line": 7,
+        "col": 47,
+        "offset": 192
+      },
+      "extra": {
+        "message": "Generic API Key detected",
+        "metadata": {
+          "source-rule-url": "https://github.com/dxa4481/truffleHogRegexes/blob/master/truffleHogRegexes/regexes.json",
+          "category": "security",
+          "technology": [
+            "secrets"
+          ],
+          "confidence": "LOW",
+          "references": [
+            "https://github.com/dxa4481/truffleHogRegexes/blob/master/truffleHogRegexes/regexes.json"
+          ],
+          "owasp": [
+            "A07:2021 - Identification and Authentication Failures",
+            "A07:2025 - Authentication Failures"
+          ],
+          "cwe": [
+            "CWE-798: Use of Hard-coded Credentials"
+          ],
+          "cwe2022-top25": true,
+          "cwe2021-top25": true,
+          "subcategory": [
+            "audit"
+          ],
+          "likelihood": "LOW",
+          "impact": "MEDIUM",
+          "license": "Semgrep Rules License v1.0. For more details, visit semgrep.dev/legal/rules-license",
+          "vulnerability_class": [
+            "Hard-coded Secrets"
+          ],
+          "source": "https://semgrep.dev/r/generic.secrets.security.detected-generic-api-key.detected-generic-api-key",
+          "shortlink": "https://sg.run/qxj8"
+        },
+        "severity": "ERROR",
+        "fingerprint": "requires login",
+        "lines": "requires login",
+        "validation_state": "NO_VALIDATOR",
+        "engine_kind": "OSS"
+      }
+    },
+    {
+      "check_id": "python.sqlalchemy.performance.performance-improvements.len-all-count",
+      "path": "C:\\Users\\AMD\\AppData\\Local\\Temp\\defectdojo\\dojo\\api_v2\\views.py",
+      "start": {
+        "line": 813,
+        "col": 34,
+        "offset": 30102
+      },
+      "end": {
+        "line": 813,
+        "col": 56,
+        "offset": 30124
+      },
+      "extra": {
+        "message": "Using QUERY.count() instead of len(QUERY.all()) sends less data to the client since the SQLAlchemy method is performed server-side.",
+        "metadata": {
+          "category": "performance",
+          "technology": [
+            "sqlalchemy"
+          ],
+          "license": "Semgrep Rules License v1.0. For more details, visit semgrep.dev/legal/rules-license",
+          "source": "https://semgrep.dev/r/python.sqlalchemy.performance.performance-improvements.len-all-count",
+          "shortlink": "https://sg.run/4y8g"
+        },
+        "severity": "WARNING",
+        "fingerprint": "requires login",
+        "lines": "requires login",
+        "validation_state": "NO_VALIDATOR",
+        "engine_kind": "OSS"
+      }
+    },
+    {
+      "check_id": "python.lang.security.audit.non-literal-import.non-literal-import",
+      "path": "C:\\Users\\AMD\\AppData\\Local\\Temp\\defectdojo\\dojo\\api_v2\\views.py",
+      "start": {
+        "line": 1072,
+        "col": 20,
+        "offset": 41163
+      },
+      "end": {
+        "line": 1072,
+        "col": 56,
+        "offset": 41199
+      },
+      "extra": {
+        "message": "Untrusted user input in `importlib.import_module()` function allows an attacker to load arbitrary code. Avoid dynamic values in `importlib.import_module()` or use a whitelist to prevent running untrusted code.",
+        "metadata": {
+          "owasp": [
+            "A01:2021 - Broken Access Control",
+            "A01:2025 - Broken Access Control"
+          ],
+          "cwe": [
+            "CWE-706: Use of Incorrectly-Resolved Name or Reference"
+          ],
+          "category": "security",
+          "technology": [
+            "python"
+          ],
+          "references": [
+            "https://owasp.org/Top10/A01_2021-Broken_Access_Control"
+          ],
+          "subcategory": [
+            "audit"
+          ],
+          "likelihood": "LOW",
+          "impact": "MEDIUM",
+          "confidence": "LOW",
+          "license": "Semgrep Rules License v1.0. For more details, visit semgrep.dev/legal/rules-license",
+          "vulnerability_class": [
+            "Improper Authorization"
+          ],
+          "source": "https://semgrep.dev/r/python.lang.security.audit.non-literal-import.non-literal-import",
+          "shortlink": "https://sg.run/y6Jk"
+        },
+        "severity": "WARNING",
+        "fingerprint": "requires login",
+        "lines": "requires login",
+        "validation_state": "NO_VALIDATOR",
+        "engine_kind": "OSS"
+      }
+    },
+    {
+      "check_id": "python.lang.security.audit.formatted-sql-query.formatted-sql-query",
+      "path": "C:\\Users\\AMD\\AppData\\Local\\Temp\\defectdojo\\dojo\\auditlog\\backfill.py",
+      "start": {
+        "line": 169,
+        "col": 13,
+        "offset": 6277
+      },
+      "end": {
+        "line": 169,
+        "col": 65,
+        "offset": 6329
+      },
+      "extra": {
+        "message": "Detected possible formatted SQL query. Use parameterized queries instead.",
+        "metadata": {
+          "owasp": [
+            "A01:2017 - Injection",
+            "A03:2021 - Injection",
+            "A05:2025 - Injection"
+          ],
+          "cwe": [
+            "CWE-89: Improper Neutralization of Special Elements used in an SQL Command ('SQL Injection')"
+          ],
+          "references": [
+            "https://stackoverflow.com/questions/775296/mysql-parameterized-queries"
+          ],
+          "category": "security",
+          "technology": [
+            "python"
+          ],
+          "cwe2022-top25": true,
+          "cwe2021-top25": true,
+          "subcategory": [
+            "audit"
+          ],
+          "likelihood": "LOW",
+          "impact": "HIGH",
+          "confidence": "LOW",
+          "license": "Semgrep Rules License v1.0. For more details, visit semgrep.dev/legal/rules-license",
+          "vulnerability_class": [
+            "SQL Injection"
+          ],
+          "source": "https://semgrep.dev/r/python.lang.security.audit.formatted-sql-query.formatted-sql-query",
+          "shortlink": "https://sg.run/EkWw"
+        },
+        "severity": "WARNING",
+        "fingerprint": "requires login",
+        "lines": "requires login",
+        "validation_state": "NO_VALIDATOR",
+        "engine_kind": "OSS"
+      }
+    },
+    {
+      "check_id": "python.sqlalchemy.security.sqlalchemy-execute-raw-query.sqlalchemy-execute-raw-query",
+      "path": "C:\\Users\\AMD\\AppData\\Local\\Temp\\defectdojo\\dojo\\auditlog\\backfill.py",
+      "start": {
+        "line": 169,
+        "col": 13,
+        "offset": 6277
+      },
+      "end": {
+        "line": 169,
+        "col": 65,
+        "offset": 6329
+      },
+      "extra": {
+        "message": "Avoiding SQL string concatenation: untrusted input concatenated with raw SQL query can result in SQL Injection. In order to execute raw query safely, prepared statement should be used. SQLAlchemy provides TextualSQL to easily used prepared statement with named parameters. For complex SQL composition, use SQL Expression Language or Schema Definition Language. In most cases, SQLAlchemy ORM will be a better option.",
+        "metadata": {
+          "cwe": [
+            "CWE-89: Improper Neutralization of Special Elements used in an SQL Command ('SQL Injection')"
+          ],
+          "owasp": [
+            "A01:2017 - Injection",
+            "A03:2021 - Injection",
+            "A05:2025 - Injection"
+          ],
+          "references": [
+            "https://docs.sqlalchemy.org/en/14/core/tutorial.html#using-textual-sql",
+            "https://www.tutorialspoint.com/sqlalchemy/sqlalchemy_quick_guide.htm",
+            "https://docs.sqlalchemy.org/en/14/core/tutorial.html#using-more-specific-text-with-table-expression-literal-column-and-expression-column"
+          ],
+          "category": "security",
+          "technology": [
+            "sqlalchemy"
+          ],
+          "cwe2022-top25": true,
+          "cwe2021-top25": true,
+          "subcategory": [
+            "audit"
+          ],
+          "likelihood": "LOW",
+          "impact": "HIGH",
+          "confidence": "LOW",
+          "license": "Semgrep Rules License v1.0. For more details, visit semgrep.dev/legal/rules-license",
+          "vulnerability_class": [
+            "SQL Injection"
+          ],
+          "source": "https://semgrep.dev/r/python.sqlalchemy.security.sqlalchemy-execute-raw-query.sqlalchemy-execute-raw-query",
+          "shortlink": "https://sg.run/2b1L"
+        },
+        "severity": "ERROR",
+        "fingerprint": "requires login",
+        "lines": "requires login",
+        "validation_state": "NO_VALIDATOR",
+        "engine_kind": "OSS"
+      }
+    },
+    {
+      "check_id": "python.django.security.audit.custom-expression-as-sql.custom-expression-as-sql",
+      "path": "C:\\Users\\AMD\\AppData\\Local\\Temp\\defectdojo\\dojo\\components\\sql_group_concat.py",
+      "start": {
+        "line": 22,
+        "col": 16,
+        "offset": 654
+      },
+      "end": {
+        "line": 27,
+        "col": 10,
+        "offset": 824
+      },
+      "extra": {
+        "message": "Detected a Custom Expression ''super()'' calling ''as_sql(...).'' This could lead to SQL injection, which can result in attackers exfiltrating sensitive data. Instead, ensure no user input enters this function or that user input is properly sanitized.",
+        "metadata": {
+          "cwe": [
+            "CWE-89: Improper Neutralization of Special Elements used in an SQL Command ('SQL Injection')"
+          ],
+          "owasp": [
+            "A01:2017 - Injection",
+            "A03:2021 - Injection",
+            "A05:2025 - Injection"
+          ],
+          "references": [
+            "https://docs.djangoproject.com/en/3.0/ref/models/expressions/#django.db.models.Func.as_sql",
+            "https://semgrep.dev/blog/2020/preventing-sql-injection-a-django-authors-perspective/"
+          ],
+          "category": "security",
+          "technology": [
+            "django"
+          ],
+          "cwe2022-top25": true,
+          "cwe2021-top25": true,
+          "subcategory": [
+            "audit"
+          ],
+          "likelihood": "LOW",
+          "impact": "HIGH",
+          "confidence": "LOW",
+          "license": "Semgrep Rules License v1.0. For more details, visit semgrep.dev/legal/rules-license",
+          "vulnerability_class": [
+            "SQL Injection"
+          ],
+          "source": "https://semgrep.dev/r/python.django.security.audit.custom-expression-as-sql.custom-expression-as-sql",
+          "shortlink": "https://sg.run/b7bW"
+        },
+        "severity": "WARNING",
+        "fingerprint": "requires login",
+        "lines": "requires login",
+        "validation_state": "NO_VALIDATOR",
+        "engine_kind": "OSS"
+      }
+    },
+    {
+      "check_id": "python.django.security.django-using-request-post-after-is-valid.django-using-request-post-after-is-valid",
+      "path": "C:\\Users\\AMD\\AppData\\Local\\Temp\\defectdojo\\dojo\\endpoint\\ui\\views.py",
+      "start": {
+        "line": 260,
+        "col": 20,
+        "offset": 9416
+      },
+      "end": {
+        "line": 260,
+        "col": 44,
+        "offset": 9440
+      },
+      "extra": {
+        "message": "Use form.cleaned_data[] instead of request.POST[] after form.is_valid() has been executed to only access sanitized data",
+        "metadata": {
+          "category": "security",
+          "cwe": "CWE-20: Improper Input Validation",
+          "references": [
+            "https://docs.djangoproject.com/en/4.2/ref/forms/api/#accessing-clean-data"
+          ],
+          "confidence": "MEDIUM",
+          "likelihood": "MEDIUM",
+          "impact": "MEDIUM",
+          "subcategory": [
+            "audit"
+          ],
+          "technology": [
+            "django"
+          ],
+          "license": "Semgrep Rules License v1.0. For more details, visit semgrep.dev/legal/rules-license",
+          "vulnerability_class": [
+            "Improper Validation"
+          ],
+          "source": "https://semgrep.dev/r/python.django.security.django-using-request-post-after-is-valid.django-using-request-post-after-is-valid",
+          "shortlink": "https://sg.run/kJn7"
+        },
+        "severity": "WARNING",
+        "fingerprint": "requires login",
+        "lines": "requires login",
+        "validation_state": "NO_VALIDATOR",
+        "engine_kind": "OSS"
+      }
+    }
+  ]
+}

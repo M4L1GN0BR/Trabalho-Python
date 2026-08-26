@@ -19,9 +19,21 @@ SECRET_RULES = [
         "prioridade": "Alta",
     },
     {
+        "id": "AWS_SECRET_ACCESS_KEY",
+        "descricao": "Possível chave secreta AWS encontrada (padrão de 40 caracteres).",
+        "regex": r"(?i)(aws[_-]?secret[_-]?access[_-]?key|secret[_-]?access[_-]?key)\s*[=:]\s*['\"][A-Za-z0-9/+=]{40}['\"]",
+        "prioridade": "Alta",
+    },
+    {
         "id": "GITHUB_TOKEN",
         "descricao": "Possível token do GitHub encontrado.",
         "regex": r"ghp_[A-Za-z0-9_]{30,}",
+        "prioridade": "Alta",
+    },
+    {
+        "id": "GITHUB_FINE_GRAINED_TOKEN",
+        "descricao": "Possível token fine-grained do GitHub encontrado.",
+        "regex": r"github_pat_[A-Za-z0-9_]{20,}",
         "prioridade": "Alta",
     },
     {
@@ -31,9 +43,33 @@ SECRET_RULES = [
         "prioridade": "Alta",
     },
     {
+        "id": "STRIPE_SECRET_KEY",
+        "descricao": "Possível chave secreta do Stripe encontrada.",
+        "regex": r"sk_live_[0-9A-Za-z]{20,}",
+        "prioridade": "Alta",
+    },
+    {
+        "id": "SLACK_TOKEN",
+        "descricao": "Possível token do Slack encontrado.",
+        "regex": r"xox[baprs]-[0-9A-Za-z-]{10,}",
+        "prioridade": "Alta",
+    },
+    {
+        "id": "NPM_TOKEN",
+        "descricao": "Possível token do npm encontrado.",
+        "regex": r"npm_[0-9A-Za-z]{30,}",
+        "prioridade": "Alta",
+    },
+    {
+        "id": "PYPI_TOKEN",
+        "descricao": "Possível token do PyPI encontrado.",
+        "regex": r"pypi-AgEIcHlwaS5vcmc[A-Za-z0-9_\-]{20,}",
+        "prioridade": "Alta",
+    },
+    {
         "id": "PRIVATE_KEY",
         "descricao": "Possível chave privada encontrada.",
-        "regex": r"-----BEGIN (RSA|OPENSSH|EC|DSA) PRIVATE KEY-----",
+        "regex": r"-----BEGIN (RSA|OPENSSH|EC|DSA|PGP) (PRIVATE )?KEY( BLOCK)?-----",
         "prioridade": "Alta",
     },
     {
@@ -61,8 +97,12 @@ SECRET_RULES = [
 SECRET_REGEX_PATTERNS = [
     r"AKIA[0-9A-Z]{16}",
     r"ghp_[A-Za-z0-9_]{30,}",
+    r"github_pat_[A-Za-z0-9_]{20,}",
     r"AIza[0-9A-Za-z\-_]{30,}",
-    r"-----BEGIN (RSA|OPENSSH|EC|DSA) PRIVATE KEY-----",
+    r"sk_live_[0-9A-Za-z]{20,}",
+    r"xox[baprs]-[0-9A-Za-z-]{10,}",
+    r"npm_[0-9A-Za-z]{30,}",
+    r"-----BEGIN (RSA|OPENSSH|EC|DSA|PGP) (PRIVATE )?KEY( BLOCK)?-----",
     r"(?i)(secret|token|password|passwd|api_key|apikey)\s*[:=]\s*['\"][^'\"]{8,}['\"]",
 ]
 

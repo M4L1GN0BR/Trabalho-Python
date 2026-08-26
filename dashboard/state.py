@@ -70,6 +70,16 @@ def filter_false_positives(df, source):
             )
         ]
 
+    if source == "url":
+        return df[
+            ~df.apply(
+                lambda row: is_false_positive(
+                    f"url_{row['Tipo']}_{row['Categoria']}_{row['Item']}"
+                ),
+                axis=1,
+            )
+        ]
+
     return df
 
 
@@ -145,6 +155,11 @@ def process_consolidated_report(report):
     st.session_state["consolidated_sca"] = sca_data
     st.session_state["consolidated_secrets"] = secrets_data
     st.session_state["secret_results"] = secret_findings
+
+    # Zera o orçamento de chamadas de IA para o novo relatório
+    from dashboard.parsers import reset_ai_budget
+
+    reset_ai_budget()
 
     meta = report.get("scan_metadata", {})
     summary = meta.get("summary", {})

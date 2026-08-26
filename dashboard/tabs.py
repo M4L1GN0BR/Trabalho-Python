@@ -5,6 +5,7 @@ Cada aba do Streamlit virou uma função de renderização. O app.py apenas
 cria as tabs e chama as funções na mesma ordem de antes.
 """
 
+import html
 import json
 import sqlite3
 from datetime import datetime
@@ -372,22 +373,48 @@ def render_resumo_tab():
                     "Crítica": "#ef4444", "Alta": "#f59e0b",
                     "Média": "#38bdf8", "Baixa": "#22c55e",
                 }.get(r["priority"], "#cbd5e1")
-                origem = r.get("file") or r.get("endpoint") or r.get("dependency") or "—"
+                origem = html.escape(
+                    str(r.get("file") or r.get("endpoint") or r.get("dependency") or "—")
+                )
                 score_line = f"{origem} · score {r['score']}"
                 if r.get("owasp_label"):
-                    score_line = f"{origem} · {r['owasp_label']} · score {r['score']}"
+                    score_line = f"{origem} · {html.escape(str(r['owasp_label']))} · score {r['score']}"
+
+                # Título e descrição legíveis (pt-BR) com fallback para o original
+                titulo = html.escape(str(r.get("title_pt") or r["title"]))
+                descricao = html.escape(str(r.get("evidence_pt") or r["evidence"]))
+                tool_ref = html.escape(str(r.get("tool", "")))
+
+                # Contexto de arquivo de teste / falso positivo (estudo DefectDojo)
+                contexto_badges = []
+                if r.get("in_test_file"):
+                    contexto_badges.append(
+                        "<span style='background:#64748b22;color:#94a3b8;border:1px solid #64748b55;border-radius:999px;padding:0.1rem 0.5rem;font-size:0.7rem;font-weight:800;'>ARQUIVO DE TESTE</span>"
+                    )
+                if r.get("fp_candidate"):
+                    contexto_badges.append(
+                        "<span style='background:#f59e0b22;color:#f59e0b;border:1px solid #f59e0b55;border-radius:999px;padding:0.1rem 0.5rem;font-size:0.7rem;font-weight:800;'>FP PROVÁVEL</span>"
+                    )
+                badges_html = " ".join(contexto_badges)
+                fp_note = (
+                    f"<div style='color:#94a3b8;font-size:0.75rem;margin-top:0.2rem;'>{html.escape(str(r.get('fp_reason', '')))}</div>"
+                    if r.get("fp_candidate") and r.get("fp_reason")
+                    else ""
+                )
+
                 st.markdown(
                     f"""
                     <div class="enterprise-card" style="border-left: 4px solid {p_color}; padding: 0.9rem 1rem; margin-bottom: 0.6rem;">
                         <div style="display:flex; justify-content:space-between; align-items:center;">
                             <div style="max-width:82%;">
                                 <div style="font-weight:900; color:#f8fafc; font-size:0.95rem;">
-                                    <span style="color:#64748b; font-size:0.8rem;">[{r['tool']}]</span> {r['title']}
+                                    <span style="color:#64748b; font-size:0.8rem;">[{tool_ref}]</span> {titulo}
                                 </div>
                                 <div style="color:#94a3b8; font-size:0.8rem; margin-top:0.25rem;">{score_line}</div>
-                                <div style="color:#cbd5e1; font-size:0.82rem; margin-top:0.3rem;">{r['evidence'][:140]}</div>
+                                <div style="margin-top:0.35rem;">{badges_html}{fp_note}</div>
+                                <div style="color:#cbd5e1; font-size:0.82rem; margin-top:0.3rem;">{str(descricao)[:180]}</div>
                             </div>
-                            <div style="color:{p_color}; font-weight:950; font-size:0.9rem; white-space:nowrap;">{r['priority']}</div>
+                            <div style="color:{p_color}; font-weight:950; font-size:0.9rem; white-space:nowrap;">{html.escape(str(r['priority']))}</div>
                         </div>
                     </div>
                     """,
@@ -554,8 +581,22 @@ def render_semgrep_tab():
 
         st.subheader("Detalhes Técnicos com IA")
 
-        for _, row in filtered_df.iterrows():
-            unique_id = f"semgrep_{row['ID']}_{row['Arquivo']}_{row['Linha']}"
+        # Limite de expanders por aba: com relatórios grandes (ex.: 1.500
+        # achados do DefectDojo), renderizar um expander por achado trava o
+        # Streamlit. Os demais ficam disponíveis na tabela técnica.
+        MAX_EXPANDERS = 25
+        total_rows = len(filtered_df)
+        if total_rows > MAX_EXPANDERS:
+            st.caption(
+                f"Exibindo os {MAX_EXPANDERS} primeiros achados. "
+                f"{total_rows - MAX_EXPANDERS} restantes na tabela técnica acima."
+            )
+
+        for idx, (_, row) in enumerate(filtered_df.iterrows()):
+            if idx >= MAX_EXPANDERS:
+                break
+            canonical_id = f"semgrep_{row['ID']}_{row['Arquivo']}_{row['Linha']}"
+            widget_key = f"{canonical_id}_{idx}"
 
             with st.expander(f"{row['ID']} | {row['Arquivo']} | Linha {row['Linha']}"):
                 st.write(f"Severidade: {row['Severidade']}")
@@ -566,8 +607,8 @@ def render_semgrep_tab():
                 st.write(f"Risco IA: {row['Risco IA']}")
                 st.write(f"Correção IA: {row['Correção IA']}")
 
-                if st.button("Marcar como falso positivo", key=unique_id):
-                    add_false_positive(unique_id)
+                if st.button("Marcar como falso positivo", key=widget_key):
+                    add_false_positive(canonical_id)
                     st.rerun()
 
     else:
@@ -649,8 +690,20 @@ def render_bandit_tab():
 
         st.subheader("Detalhamento com IA")
 
-        for _, row in filtered_df.iterrows():
-            unique_id = f"bandit_{row['Teste']}_{row['Arquivo']}_{row['Linha']}"
+        # Limite de expanders (mesma política da aba Semgrep)
+        MAX_EXPANDERS = 25
+        total_rows = len(filtered_df)
+        if total_rows > MAX_EXPANDERS:
+            st.caption(
+                f"Exibindo os {MAX_EXPANDERS} primeiros achados. "
+                f"{total_rows - MAX_EXPANDERS} restantes na tabela técnica acima."
+            )
+
+        for idx, (_, row) in enumerate(filtered_df.iterrows()):
+            if idx >= MAX_EXPANDERS:
+                break
+            canonical_id = f"bandit_{row['Teste']}_{row['Arquivo']}_{row['Linha']}"
+            widget_key = f"{canonical_id}_{idx}"
 
             with st.expander(
                 f"{row['Teste']} | {row['Arquivo']} | Linha {row['Linha']}"
@@ -664,8 +717,8 @@ def render_bandit_tab():
                 st.write(f"Risco IA: {row['Risco IA']}")
                 st.write(f"Correção IA: {row['Correção IA']}")
 
-                if st.button("Marcar como falso positivo", key=unique_id):
-                    add_false_positive(unique_id)
+                if st.button("Marcar como falso positivo", key=widget_key):
+                    add_false_positive(canonical_id)
                     st.rerun()
 
     else:
@@ -701,6 +754,31 @@ def render_sca_tab():
         sca_data = st.session_state.get("consolidated_sca", {"dependencies": []})
 
     sca_vulns = get_sca_vulnerabilities(sca_data)
+
+    # ── Inventário de dependências (SBOM-lite) ──
+    # Visão por pacote: risco agregado e versões corrigidas.
+    # Aprendizado do estudo DefectDojo: priorizar por pacote, não por CVE solta.
+    try:
+        from src.core.inventory import inventory_summary, package_table_rows
+
+        summary = inventory_summary(sca_data)
+        if summary["total_packages"] > 0:
+            st.subheader("Inventário de dependências")
+            c1, c2, c3, c4 = st.columns(4)
+            c1.metric("Dependências", summary["total_packages"])
+            c2.metric("Com vulnerabilidades", summary["packages_with_vulns"])
+            c3.metric("CVEs totais", summary["total_vulns"])
+            c4.metric("Críticas/Alta", summary["by_risk"]["Crítica"] + summary["by_risk"]["Alta"])
+
+            rows = package_table_rows(sca_data, limit=15)
+            st.dataframe(pd.DataFrame(rows), use_container_width=True)
+
+            if summary["critical_packages"]:
+                st.caption(
+                    "Prioridade de atualização: " + ", ".join(summary["critical_packages"])
+                )
+    except Exception as e:
+        st.caption(f"Inventário indisponível: {e}")
 
     if sca_vulns:
         df = pd.DataFrame(sca_vulns)
@@ -746,8 +824,20 @@ def render_sca_tab():
 
         st.subheader("Detalhamento com IA")
 
-        for _, row in filtered_df.iterrows():
-            unique_id = f"sca_{row['Biblioteca']}_{row['CVE']}"
+        # Limite de expanders (mesma política da aba Semgrep)
+        MAX_EXPANDERS = 25
+        total_rows = len(filtered_df)
+        if total_rows > MAX_EXPANDERS:
+            st.caption(
+                f"Exibindo os {MAX_EXPANDERS} primeiros achados. "
+                f"{total_rows - MAX_EXPANDERS} restantes na tabela técnica acima."
+            )
+
+        for idx, (_, row) in enumerate(filtered_df.iterrows()):
+            if idx >= MAX_EXPANDERS:
+                break
+            canonical_id = f"sca_{row['Biblioteca']}_{row['CVE']}"
+            widget_key = f"{canonical_id}_{idx}"
 
             with st.expander(f"{row['Biblioteca']} | {row['CVE']}"):
                 st.write(f"Versão Atual: {row['Versão Atual']}")
@@ -759,8 +849,8 @@ def render_sca_tab():
                 st.write(f"Risco IA: {row['Risco IA']}")
                 st.write(f"Correção IA: {row['Correção IA']}")
 
-                if st.button("Marcar como falso positivo", key=unique_id):
-                    add_false_positive(unique_id)
+                if st.button("Marcar como falso positivo", key=widget_key):
+                    add_false_positive(canonical_id)
                     st.rerun()
 
     else:
@@ -782,6 +872,10 @@ def render_sca_tab():
 def render_url_tab():
     st.subheader("Análise Passiva de URL")
 
+    if not can("url_analysis"):
+        st.warning("Acesso restrito aos perfis Analista e Administrador.")
+        st.stop()
+
     url = st.text_input("Digite a URL", placeholder="https://exemplo.com")
 
     usar_ia_url = st.checkbox("Usar IA para explicar cada achado da URL", value=True)
@@ -798,10 +892,22 @@ def render_url_tab():
         "Limite de achados explicados pela IA", min_value=1, max_value=50, value=10
     )
 
+    allow_private = st.checkbox(
+        "Alvo em laboratório local (permitir IPs privados/loopback)",
+        key="url_allow_private",
+    )
+
     if st.button("Analisar URL"):
         if not url.strip():
             st.warning("Digite uma URL.")
         else:
+            from src.core.target_guard import check_target
+
+            ok, msg = check_target(url, allow_private)
+            if not ok:
+                st.error(msg)
+                st.stop()
+
             with st.spinner("Analisando URL..."):
                 st.session_state.last_url_scan = analyze_url(
                     url,
@@ -1025,8 +1131,20 @@ def render_url_tab():
             [active_url_df, improvements_df, controls_ok_df], ignore_index=True
         )
 
-        for index, row in detail_df.iterrows():
-            unique_id = f"url_{row['Tipo']}_{row['Categoria']}_{row['Item']}"
+        # Limite de expanders (mesma política das demais abas)
+        MAX_EXPANDERS = 25
+        total_detail = len(detail_df)
+        if total_detail > MAX_EXPANDERS:
+            st.caption(
+                f"Exibindo os {MAX_EXPANDERS} primeiros itens. "
+                f"{total_detail - MAX_EXPANDERS} restantes nas tabelas acima."
+            )
+
+        for index, (_, row) in enumerate(detail_df.iterrows()):
+            if index >= MAX_EXPANDERS:
+                break
+            canonical_id = f"url_{row['Tipo']}_{row['Categoria']}_{row['Item']}"
+            widget_key = f"{canonical_id}_{index}"
 
             description_for_ai = (
                 f"Tipo: {row['Tipo']}. "
@@ -1055,8 +1173,8 @@ def render_url_tab():
                 st.write(f"Correção IA: {ai_result['correcao']}")
 
                 if row["Tipo"] == "Achado Ativo":
-                    if st.button("Marcar como falso positivo", key=unique_id):
-                        add_false_positive(unique_id)
+                    if st.button("Marcar como falso positivo", key=widget_key):
+                        add_false_positive(canonical_id)
                         st.rerun()
 
         if not auto_fp_df.empty:
@@ -1215,10 +1333,10 @@ def render_attack_surface_tab():
             col3.metric("Melhorias", len(improvements_df))
             col4.metric("Falsos Positivos", len(false_positive_df))
 
-            # Resumo do domínio analisado
-            dominio = current_url_result.get("dominio", "-")
-            url_final = current_url_result.get("url_final", "-")
-            status_code = current_url_result.get("status_code", "-")
+            # Resumo do domínio analisado (escapado antes de montar o HTML)
+            dominio = html.escape(str(current_url_result.get("dominio", "-")))
+            url_final = html.escape(str(current_url_result.get("url_final", "-")))
+            status_code = html.escape(str(current_url_result.get("status_code", "-")))
             st.markdown(
                 f"""
                 <div class="enterprise-card" style="margin-bottom: 1rem;">
@@ -1369,6 +1487,10 @@ def render_attack_surface_tab():
 def render_offensive_tab():
     st.subheader("Testes Ofensivos (Laboratório Autorizado)")
 
+    if not can("scan"):
+        st.warning("Acesso restrito aos perfis Analista e Administrador.")
+        st.stop()
+
     st.warning(
         "Somente para uso autorizado (laboratório, DVWA, Juice Shop, alvos próprios). "
         "Testar terceiros sem autorização é ilegal no Brasil (Lei 12.737/2012)."
@@ -1403,11 +1525,23 @@ def render_offensive_tab():
     traversal_param = st.text_input("Parâmetro de arquivo (Path Traversal)", value="file")
     web_param = st.text_input("Parâmetro de teste (SQLi / XSS)", value="id")
 
+    allow_private = st.checkbox(
+        "Alvo em laboratório local (permitir IPs privados/loopback)",
+        key="off_allow_private",
+    )
+
     if st.button(
         "Executar testes",
         disabled=not (autorizado and url.strip()),
         use_container_width=True,
     ):
+        from src.core.target_guard import check_target
+
+        ok, msg = check_target(url, allow_private)
+        if not ok:
+            st.error(msg)
+            st.stop()
+
         with st.spinner("Executando testes (limitados e sem ações destrutivas)..."):
             st.session_state.attack_results = run_attack_modules(
                 url,
@@ -1669,11 +1803,19 @@ def render_admin_tab():
             if submitted_user:
                 if not new_username or not new_password:
                     st.error("Informe usuário e senha.")
-                elif register_user(new_username, new_password, new_role):
-                    st.success(f"Usuário '{new_username}' criado com perfil {ROLE_LABELS.get(new_role, new_role)}.")
-                    st.rerun()
                 else:
-                    st.error("Usuário já existe.")
+                    try:
+                        criado = register_user(new_username, new_password, new_role)
+                    except ValueError as e:
+                        st.error(str(e))
+                    else:
+                        if criado:
+                            st.success(
+                                f"Usuário '{new_username}' criado com perfil {ROLE_LABELS.get(new_role, new_role)}."
+                            )
+                            st.rerun()
+                        else:
+                            st.error("Usuário já existe.")
 
     # ── Lista de usuários ──
     users_df = load_users()
@@ -1723,3 +1865,139 @@ def render_admin_tab():
                 "Nenhuma análise da IA registrada ainda. As explicações dos achados "
                 "são salvas automaticamente conforme o dashboard processa findings."
             )
+
+
+# ═══════════════════════════════════════════════════════════════
+# TAB 11 - CI/CD & TEMPLATES (GitHub Actions + XSS)
+# ═══════════════════════════════════════════════════════════════
+
+
+def render_ci_cd_tab():
+    st.subheader("CI/CD & Templates")
+
+    if not can("scan"):
+        st.warning("Acesso restrito aos perfis Analista e Administrador.")
+        st.stop()
+
+    st.markdown(
+        """
+        <div class="enterprise-card">
+            <div class="enterprise-muted">
+                Análise dedicada de <b>GitHub Actions</b> (shell injection, secrets herdados,
+                <code>pull_request_target</code>, permissões amplas) e de <b>templates</b>
+                (XSS por <code>autoescape off</code>, <code>|safe</code> e <code>blocktranslate</code>).
+                Aprendizado do estudo DefectDojo: 21 shell-injections e 175 XSS em templates.
+            </div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+    from src.core.github_actions import scan_repo_workflows
+    from src.core.template_xss import scan_repo_templates
+
+    repo_path = st.text_input(
+        "Caminho do repositório",
+        placeholder="ex.: C:/projetos/meu-app",
+        key="ci_repo_path",
+    )
+
+    if st.button("Analisar CI/CD e Templates", type="primary"):
+        if not repo_path.strip():
+            st.warning("Informe o caminho do repositório.")
+        else:
+            with st.spinner("Analisando workflows e templates..."):
+                workflows = scan_repo_workflows(repo_path)
+                templates = scan_repo_templates(repo_path)
+                st.session_state["ci_cd_findings"] = {
+                    "workflows": workflows,
+                    "templates": templates,
+                    "repo": repo_path,
+                }
+            st.success(
+                f"Análise concluída: {len(workflows)} achado(s) em workflows, "
+                f"{len(templates)} em templates."
+            )
+
+    result = st.session_state.get("ci_cd_findings")
+    if not result:
+        render_empty_state(
+            "Nenhuma análise de CI/CD executada.",
+            "Informe o caminho de um repositório e clique em Analisar. "
+            "Funciona com o DefectDojo clonado ou qualquer projeto com .github/workflows.",
+            "info",
+        )
+        return
+
+    workflows = result["workflows"]
+    templates = result["templates"]
+
+    c1, c2, c3 = st.columns(3)
+    c1.metric("Workflows", f"{len(workflows)} achados")
+    c2.metric("Templates", f"{len(templates)} achados")
+    c3.metric("Total", len(workflows) + len(templates))
+
+    # ── GitHub Actions ──
+    st.markdown("### GitHub Actions")
+    if workflows:
+        wf_df = pd.DataFrame(workflows)
+        high = wf_df[wf_df["Prioridade"] == "Alta"].shape[0]
+        st.caption(f"{len(workflows)} achados (Alta: {high})")
+        render_table_as_cards(
+            wf_df,
+            title_key="Item",
+            subtitle_keys=["Categoria", "Evidências"],
+            badge_key="Prioridade",
+            description_key="Descrição",
+            limit=10,
+        )
+        render_technical_table("Ver tabela técnica dos workflows", wf_df)
+        csv = wf_df.to_csv(index=False).encode("utf-8-sig")
+        st.download_button("Exportar CSV - CI/CD", csv, "ci_cd_workflows.csv", "text/csv")
+    else:
+        render_empty_state(
+            "Nenhum risco em workflows.",
+            "Não foram encontrados padrões de shell injection, secrets herdados ou pull_request_target.",
+            "good",
+        )
+
+    # ── Templates ──
+    st.markdown("### Templates (XSS)")
+    if templates:
+        tpl_df = pd.DataFrame(templates)
+        alta = tpl_df[tpl_df["Prioridade"] == "Alta"].shape[0]
+        st.caption(f"{len(templates)} achados (Alta: {alta})")
+        render_table_as_cards(
+            tpl_df,
+            title_key="Item",
+            subtitle_keys=["Categoria", "Evidências"],
+            badge_key="Prioridade",
+            description_key="Descrição",
+            limit=10,
+        )
+        render_technical_table("Ver tabela técnica dos templates", tpl_df)
+        csv = tpl_df.to_csv(index=False).encode("utf-8-sig")
+        st.download_button("Exportar CSV - Templates", csv, "templates_xss.csv", "text/csv")
+    else:
+        render_empty_state(
+            "Nenhum risco em templates.",
+            "Não foram encontrados autoescape off, |safe ou blocktranslate com variáveis.",
+            "good",
+        )
+
+    # ── Guia rápido ──
+    with st.expander("Guia de remediação"):
+        st.markdown(
+            """
+            **Shell injection em GitHub Actions**
+            - Nunca concatene `${{ github.event.* }}` em strings de `run:`.
+            - Use `env:` mapeado e acesse como variável de ambiente dentro do shell.
+            - Evite `pull_request_target`; se necessário, faça checkout com `ref` validado.
+
+            **XSS em templates**
+            - Prefira o escape automático do Django; evite `{% autoescape off %}`.
+            - Filtro `|safe` apenas em conteúdo confiável/sanitizado.
+            - Em `blocktranslate`, garanta que as variáveis são escapadas ou sanitizadas na origem.
+            - Use `format_html`/`escape` do Django para construir HTML dinâmico.
+            """
+        )
