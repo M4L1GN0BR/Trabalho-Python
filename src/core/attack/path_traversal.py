@@ -43,7 +43,7 @@ def path_traversal_test(url, param="file", payloads=None, timeout=5):
                 params={param: payload},
                 headers=HEADERS,
                 timeout=timeout,
-                allow_redirects=False,
+                allow_redirects=True,
             )
             body = r.text[:3000]
             out.append(

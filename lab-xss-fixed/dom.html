@@ -1,0 +1,32 @@
+<!-- dom.html — VERSÃO CORRIGIDA (XSS DOM-Based) -->
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+  <meta charset="UTF-8">
+  <title>Laboratório XSS - DOM (CORRIGIDO)</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <h1>XSS DOM-Based</h1>
+  <p>Este campo abaixo é controlado diretamente pelo JavaScript:</p>
+  <p id="saida"></p>
+
+  <div class="lkn">
+    <a class="link" href="index.html">Voltar</a>
+  </div>
+
+  <script>
+    // ANTES (vulnerável): o fragmento (#) da URL era decodificado e inserido
+    // com innerHTML — abrir ...dom.html#<img src=x onerror=alert(1)> executava
+    // script no navegador (o servidor nunca vê o fragmento, por isso o teste
+    // de reflexo tradicional não detecta este tipo).
+    //   const hash = decodeURIComponent(location.hash.slice(1));
+    //   document.getElementById("saida").innerHTML = hash;
+    //
+    // DEPOIS (corrigido): textContent insere o fragmento como TEXTO puro,
+    // sem interpretar HTML — o navegador exibe literalmente a string.
+    const hash = decodeURIComponent(location.hash.slice(1));
+    document.getElementById("saida").textContent = hash;
+  </script>
+</body>
+</html>

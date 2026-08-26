@@ -19,7 +19,12 @@ from .http_methods import http_methods_test, methods_findings
 from .path_traversal import path_traversal_test, traversal_findings
 from .open_redirect import open_redirect_test, redirect_findings
 from .sqli_detector import sqli_detection_test, sqli_findings
-from .xss_detector import xss_detection_test, xss_findings
+from .xss_detector import (
+    client_side_findings,
+    xss_detection_test,
+    xss_dom_findings,
+    xss_findings,
+)
 from .credential_stuffer import credential_stuff_test, creds_findings
 
 MODULE_LABELS = {
@@ -32,7 +37,7 @@ MODULE_LABELS = {
     "traversal": "Path Traversal (LFI)",
     "redirect": "Open Redirect",
     "sqli": "SQL Injection (detecção)",
-    "xss": "XSS Refletido (detecção)",
+    "xss": "XSS Refletido/DOM (detecção)",
     "creds": "Credenciais comuns (LAB)",
 }
 
@@ -144,7 +149,16 @@ def run_attack_modules(
     if "xss" in modules:
         xss = xss_detection_test(url, param=web_param)
         results["xss"] = xss
-        findings.extend(xss_findings(xss))
+        # XSS que o reflexo no servidor NÃO vê (valor inserido no DOM via JS)
+        dom_findings = xss_dom_findings(url)
+        findings.extend(dom_findings)
+        # Falhas de segurança client-side (credenciais hardcoded, auth no cliente)
+        findings.extend(client_side_findings(url))
+        # Evita o "Controle OK" (sem reflexo) quando a análise de DOM já achou XSS
+        refl_findings = xss_findings(xss)
+        if dom_findings:
+            refl_findings = [f for f in refl_findings if f.get("Item") != "Teste de XSS"]
+        findings.extend(refl_findings)
 
     if "creds" in modules:
         creds = credential_stuff_test(

@@ -35,7 +35,7 @@ def api_fuzz(base_url, paths=None, timeout=5):
         target = base_url.rstrip("/") + path
         try:
             r = requests.get(
-                target, timeout=timeout, headers=HEADERS, allow_redirects=False
+                target, timeout=timeout, headers=HEADERS, allow_redirects=True
             )
             out.append(
                 {

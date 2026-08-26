@@ -26,7 +26,7 @@ from dashboard.parsers import (
     get_semgrep_vulnerabilities,
 )
 from dashboard.reports import generate_executive_report, generate_pdf_report
-from dashboard.session import can
+from dashboard.session import can, is_admin
 from dashboard.state import (
     add_false_positive,
     auto_save_url_scan_once,
@@ -1022,25 +1022,27 @@ def render_url_tab():
             render_status_card("Baixa", low_count, "Baixo impacto.", "info")
 
         with kpi_col8:
-            render_status_card(
-                "Falsos Positivos",
-                auto_fp_count,
-                "Itens descartados automaticamente.",
-                "info",
-            )
+            # Falsos positivos: visíveis apenas para o Administrador
+            if is_admin():
+                render_status_card(
+                    "Falsos Positivos",
+                    auto_fp_count,
+                    "Itens descartados automaticamente.",
+                    "info",
+                )
 
         chart_col1, chart_col2 = st.columns(2)
 
         with chart_col1:
             st.subheader("Distribuição da Análise de URL")
-            url_distribution_chart = pd.DataFrame(
-                [
-                    {"Tipo": "Achados Ativos", "Quantidade": len(active_url_df)},
-                    {"Tipo": "Melhorias", "Quantidade": improvement_count},
-                    {"Tipo": "Controles OK", "Quantidade": controls_ok_count},
-                    {"Tipo": "Falsos Positivos", "Quantidade": auto_fp_count},
-                ]
-            )
+            chart_rows = [
+                {"Tipo": "Achados Ativos", "Quantidade": len(active_url_df)},
+                {"Tipo": "Melhorias", "Quantidade": improvement_count},
+                {"Tipo": "Controles OK", "Quantidade": controls_ok_count},
+            ]
+            if is_admin():
+                chart_rows.append({"Tipo": "Falsos Positivos", "Quantidade": auto_fp_count})
+            url_distribution_chart = pd.DataFrame(chart_rows)
             render_donut_chart(
                 url_distribution_chart, "Tipo", "Quantidade", "Resultado por tipo"
             )
@@ -1096,17 +1098,19 @@ def render_url_tab():
             render_compact_cards(controls_ok_df, limit=8)
             render_technical_table("Ver tabela técnica de controles OK", controls_ok_df)
 
-        st.subheader("Falsos Positivos Detectados Automaticamente")
+        # Falsos positivos: seção visível apenas para o Administrador
+        if is_admin():
+            st.subheader("Falsos Positivos Detectados Automaticamente")
 
-        if auto_fp_df.empty:
-            render_empty_state(
-                "Nenhum falso positivo automático identificado.",
-                "Todos os itens encontrados foram classificados como controles, melhorias ou achados ativos.",
-                "info",
-            )
-        else:
-            render_compact_cards(auto_fp_df, limit=8)
-            render_technical_table("Ver tabela técnica de falsos positivos", auto_fp_df)
+            if auto_fp_df.empty:
+                render_empty_state(
+                    "Nenhum falso positivo automático identificado.",
+                    "Todos os itens encontrados foram classificados como controles, melhorias ou achados ativos.",
+                    "info",
+                )
+            else:
+                render_compact_cards(auto_fp_df, limit=8)
+                render_technical_table("Ver tabela técnica de falsos positivos", auto_fp_df)
 
         csv_url = active_url_df.to_csv(index=False).encode("utf-8-sig")
         st.download_button(
@@ -1177,7 +1181,7 @@ def render_url_tab():
                         add_false_positive(canonical_id)
                         st.rerun()
 
-        if not auto_fp_df.empty:
+        if is_admin() and not auto_fp_df.empty:
             st.subheader("Explicação dos Falsos Positivos Automáticos")
 
             for _, row in auto_fp_df.iterrows():
@@ -1561,11 +1565,25 @@ def render_offensive_tab():
         )
         return
 
-    st.success(
-        f"Testes concluídos em {result['target']} — {result['total_findings']} achado(s)"
-    )
-
     df = pd.DataFrame(result["findings"])
+    # Ruído (Controle OK / Falso Positivo / Inconclusivo) fica visível apenas
+    # para o Administrador; demais perfis veem somente achados relevantes.
+    if not is_admin():
+        df = df[
+            ~df["Tipo"].isin(
+                ["Controle OK", "Falso Positivo Automático", "Teste inconclusivo"]
+            )
+        ]
+
+    if is_admin():
+        st.success(
+            f"Testes concluídos em {result['target']} — {result['total_findings']} achado(s)"
+        )
+    else:
+        st.success(
+            f"Testes concluídos em {result['target']} — {len(df)} achado(s) relevantes"
+        )
+
     if not df.empty:
         alta = df[df["Prioridade"] == "Alta"].shape[0]
         media = df[df["Prioridade"] == "Média"].shape[0]

@@ -1,0 +1,43 @@
+<!-- index.html — VERSÃO CORRIGIDA (XSS Refletido via DOM) -->
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+  <meta charset="UTF-8">
+  <title>Laboratório XSS - Reflected (CORRIGIDO)</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <h1>XSS Refletido</h1>
+  <form method="GET">
+    <label>Digite seu nome:</label>
+    <input type="text" name="nome">
+    <button type="submit">Enviar</button>
+  </form>
+
+  <div class="resultado">
+    <h2>Resultado:</h2>
+    <p>
+      Olá,
+      <span id="nome"></span>
+    </p>
+  </div>
+  <div class="lkn">
+    <a class="links" href="stored.html">Ir para XSS Armazenado</a>
+    <a class="links" href="dom.html">Ir para XSS DOM-Based</a>
+  </div>
+
+  <script>
+    // ANTES (vulnerável): o valor da URL era escrito com document.write(),
+    // que interpreta o conteúdo como HTML — um link com
+    // ?nome=<img src=x onerror=alert(1)> executava script na vítima.
+    //   const params = new URLSearchParams(window.location.search);
+    //   document.write(params.get("nome"));
+    //
+    // DEPOIS (corrigido): textContent insere o valor como TEXTO puro.
+    // O navegador nunca interpreta o conteúdo como HTML, então tags e
+    // atributos enviados na URL são exibidos literalmente (sem execução).
+    const params = new URLSearchParams(window.location.search);
+    document.getElementById("nome").textContent = params.get("nome");
+  </script>
+</body>
+</html>

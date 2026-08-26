@@ -1,0 +1,58 @@
+<!-- stored.html — VERSÃO CORRIGIDA (XSS Armazenado client-side) -->
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+  <meta charset="UTF-8">
+  <title>Laboratório XSS - Armazenado (CORRIGIDO)</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <h1>XSS Armazenado (simulado)</h1>
+  <form id="comentario-form">
+    <label>Deixe um comentário:</label><br>
+    <textarea id="comentario" rows="4" cols="50"></textarea><br>
+    <button type="submit">Enviar</button>
+  </form>
+
+  <h2>Comentários:</h2>
+  <div id="comentarios"></div>
+
+  <div class="lkn">
+    <a class="links" href="index.html">Voltar para XSS Refletido</a>
+  </div>
+
+  <script>
+    // ANTES (vulnerável): os comentários eram inseridos com innerHTML sem
+    // escape — um comentário contendo <img src=x onerror=alert(1)> era
+    // interpretado como HTML e executava script para quem visse a página.
+    //   div.innerHTML = dados.join("<hr>");
+    //
+    // DEPOIS (corrigido): os comentários são criados como elementos de TEXTO
+    // (createElement + textContent). Nada do conteúdo do usuário passa por
+    // parsing de HTML, então não há como injetar tags ou atributos.
+    const form = document.getElementById("comentario-form");
+    const div = document.getElementById("comentarios");
+
+    const mostrarComentarios = () => {
+      const dados = JSON.parse(localStorage.getItem("comentarios")) || [];
+      div.textContent = "";
+      dados.forEach(com => {
+        const p = document.createElement("p");
+        p.textContent = com;
+        div.appendChild(p);
+      });
+    };
+
+    form.addEventListener("submit", e => {
+      e.preventDefault();
+      const comentario = document.getElementById("comentario").value;
+      const dados = JSON.parse(localStorage.getItem("comentarios")) || [];
+      dados.push(comentario);
+      localStorage.setItem("comentarios", JSON.stringify(dados));
+      mostrarComentarios();
+    });
+
+    mostrarComentarios();
+  </script>
+</body>
+</html>

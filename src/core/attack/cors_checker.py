@@ -27,7 +27,7 @@ def cors_check(url, origins=None, timeout=5):
                 url,
                 headers={**HEADERS, "Origin": origin},
                 timeout=timeout,
-                allow_redirects=False,
+                allow_redirects=True,
             )
             out.append(
                 {

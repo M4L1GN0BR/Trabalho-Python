@@ -18,6 +18,11 @@ def can(permission):
     return permission in ROLE_PERMISSIONS.get(user.get("role", ""), [])
 
 
+def is_admin():
+    """True apenas para o perfil Administrador."""
+    return st.session_state.get("user", {}).get("role") == "admin"
+
+
 def get_current_username():
     """Nome do usuário logado."""
     user = st.session_state.get("user")

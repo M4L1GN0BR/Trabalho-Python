@@ -31,7 +31,7 @@ def idor_test(url, id_param="id", ids=None, timeout=5):
             target = f"{url}{sep}{id_param}={value}"
         try:
             r = requests.get(
-                target, timeout=timeout, headers=HEADERS, allow_redirects=False
+                target, timeout=timeout, headers=HEADERS, allow_redirects=True
             )
             out.append({"id": value, "status": r.status_code, "length": len(r.text)})
         except Exception:
