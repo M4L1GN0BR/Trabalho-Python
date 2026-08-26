@@ -118,7 +118,12 @@ def _launch_dashboard():
     dashboard_path = Path(__file__).resolve().parent.parent / "dashboard" / "app.py"
     cmd = [_sys.executable, "-m", "streamlit", "run", str(dashboard_path)]
     print(f"Iniciando dashboard: {' '.join(cmd)}")
-    subprocess.run(cmd)
+    try:
+        subprocess.run(cmd)
+    except KeyboardInterrupt:
+        # Ctrl+C no terminal: o Streamlit recebe o sinal e encerra junto.
+        # Sai limpo, sem traceback.
+        print("\nDashboard encerrado.")
 
 
 def cmd_demo(args):

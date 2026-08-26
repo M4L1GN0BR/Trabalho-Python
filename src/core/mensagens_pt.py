@@ -111,6 +111,30 @@ SEMGREP_PT = {
         "Workflow de GitHub Actions com padrão de risco de CI/CD (interpolação em shell, "
         "secrets herdados ou eventos não confiáveis).",
     ),
+    "package_managers.dependabot.dependabot-missing-cooldown": (
+        "Dependabot sem período de espera (cooldown)",
+        "A configuração do Dependabot não define um período de espera antes de aplicar "
+        "atualizações de dependências recém-publicadas, que podem ser maliciosas ou "
+        "instáveis. Adicione um bloco cooldown com default-days: 7 em cada "
+        "package-ecosystem sob updates.",
+    ),
+    "package_managers.renovate.renovate-missing-minimum-release-age": (
+        "Renovate sem idade mínima de release",
+        "A configuração do Renovate não define uma idade mínima (minimumReleaseAge) antes "
+        "de propor atualizações. Pacotes recém-publicados podem ser maliciosos ou "
+        "instáveis. Adicione minimumReleaseAge: 7 dias em packageRules.",
+    ),
+    "package_managers.dependabot": (
+        "Configuração do Dependabot com política de atualização insuficiente",
+        "Configuração do Dependabot (bot de dependências) sem políticas como cooldown/"
+        "intervalo mínimo entre atualizações, que evita pacotes recém-publicados.",
+    ),
+    "package_managers.renovate": (
+        "Configuração do Renovate com política de atualização insuficiente",
+        "Configuração do Renovate (bot de dependências) sem políticas como "
+        "minimumReleaseAge, que evita pacotes recém-publicados (possivelmente "
+        "maliciosos ou instáveis).",
+    ),
 }
 
 # ── Bandit (test_name → (título pt, descrição pt)) ──────────────────────────
@@ -323,7 +347,13 @@ def humanize_auto(title, evidence):
     Usado pelo fallback local da IA, que recebe apenas título e descrição.
     """
     raw = str(title or "")
-    if any(marker in raw for marker in (".security.", ".lang.", "generic.", "html.", "yaml.", ".django.")):
+    if any(
+        marker in raw
+        for marker in (
+            ".security.", ".lang.", "generic.", "html.", "yaml.", ".django.",
+            "package_managers.",
+        )
+    ):
         return humanize_semgrep(raw, evidence)
     if raw in BANDIT_PT or ("_" in raw and raw.lower() == raw):
         return humanize_bandit(raw, evidence)

@@ -111,6 +111,19 @@ def default_correction(text):
     if "hardcoded" in text or "password" in text or "secret" in text:
         return "Remover segredo do código e usar variável de ambiente ou cofre de segredos."
 
+    if (
+        "dependabot" in text
+        or "cooldown" in text
+        or "renovate" in text
+        or "minimumreleaseage" in text
+        or "minimum release" in text
+    ):
+        return (
+            "Configurar um período de espera antes de aplicar atualizações automáticas "
+            "de dependências (cooldown com default-days: 7 no Dependabot, ou "
+            "minimumReleaseAge no Renovate)."
+        )
+
     if "cve" in text or "biblioteca" in text or "depend" in text:
         return "Atualizar a dependência para uma versão corrigida e validar compatibilidade da aplicação."
 
@@ -131,6 +144,18 @@ def _risco_from_text(text):
         return "Médio: requisições forjadas podem executar ações em nome do usuário autenticado."
     if "http:" in text or "plaintext" in text:
         return "Baixo a médio: tráfego não criptografado sujeito a interceptação."
+    if (
+        "dependabot" in text
+        or "renovate" in text
+        or "cooldown" in text
+        or "minimumreleaseage" in text
+        or "minimum release" in text
+    ):
+        return (
+            "Médio: atualizações automáticas sem período de espera podem instalar "
+            "pacotes recém-publicados, possivelmente maliciosos ou instáveis "
+            "(risco de supply chain)."
+        )
     if "cve" in text or "depend" in text or "library" in text:
         return "Depende da severidade da CVE; vulnerabilidades conhecidas podem ser exploradas remotamente."
     return "Risco a confirmar: depende do contexto real de uso no código."
@@ -227,8 +252,19 @@ def local_ai_fallback(title, description):
     except Exception:
         titulo_pt, descricao_pt = title, description
 
+    # Se a humanização não encontrou tradução (devolveu o texto original, que
+    # costuma estar em inglês), NÃO ecoa a mensagem crua: usa um texto genérico
+    # em pt-BR para a explicação.
+    if descricao_pt and descricao_pt != description:
+        explicacao = descricao_pt
+    else:
+        explicacao = (
+            f"O item ({titulo_pt}) pode representar uma fragilidade de segurança. "
+            "Revise a configuração afetada conforme a recomendação abaixo."
+        )
+
     return {
-        "explicacao": descricao_pt or f"O item ({titulo_pt}) pode representar uma fragilidade de segurança.",
+        "explicacao": explicacao,
         "risco": _risco_from_text(f"{title} {description}"),
         "correcao": default_correction(f"{title} {description}"),
     }
@@ -312,9 +348,14 @@ CORRECAO: <ação específica e priorizada, 1 frase>
         text = _call_pt_retry(prompt, system_prompt)
         fallback = local_ai_fallback(title, description)
 
-        # Seção a seção: o que estiver em inglês (mesmo após o retry) é
-        # substituído pelo fallback local, que é sempre em pt-BR.
-        result = _parse_ai_response(text, fallback)
+        # Rede de segurança: se mesmo após o retry a resposta INTEIRA ainda
+        # estiver em inglês, usa o fallback local completo (sempre pt-BR).
+        if _is_mostly_english(text):
+            result = fallback
+        else:
+            # Seção a seção: o que estiver em inglês (mesmo após o retry) é
+            # substituído pelo fallback local, que é sempre em pt-BR.
+            result = _parse_ai_response(text, fallback)
 
         # Memória da IA: persiste a análise para consulta posterior
         _save_memory(title, "achado", result)

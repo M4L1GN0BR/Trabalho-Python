@@ -55,9 +55,13 @@ def main():
     print("[i] Abrindo dashboard em http://localhost:8501")
     print("[i] Login: admin / admin")
     print("[i] Após o login, o relatório do DefectDojo carrega automaticamente.")
-    subprocess.run(
-        [sys.executable, "-m", "streamlit", "run", str(ROOT / "dashboard" / "app.py")]
-    )
+    try:
+        subprocess.run(
+            [sys.executable, "-m", "streamlit", "run", str(ROOT / "dashboard" / "app.py")]
+        )
+    except KeyboardInterrupt:
+        # Ctrl+C no terminal: encerra limpo, sem traceback.
+        print("\nDashboard encerrado.")
 
 
 if __name__ == "__main__":
