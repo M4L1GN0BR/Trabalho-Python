@@ -5,9 +5,11 @@ Login, header, sidebar, cards e estados vazios. Tudo que é renderização
 pura fica aqui, fora do app.py.
 """
 
+import base64
 import html
 import json
 import textwrap
+from pathlib import Path
 
 import pandas as pd
 import streamlit as st
@@ -15,6 +17,25 @@ import streamlit as st
 from dashboard.state import process_consolidated_report
 from dashboard.theme import ENTERPRISE_CSS, LOGIN_CSS
 from src.core.auth import ROLE_LABELS, register_login, verify_login
+
+# Caminho da logo NightSync (opcional: só é renderizada se o arquivo existir).
+LOGO_PATH = Path(__file__).resolve().parent.parent / "assets" / "nightsync-logo.png"
+_LOGO_B64 = None
+
+
+def _render_logo(width=150):
+    """Exibe a logo NightSync centralizada. Silenciosa quando o arquivo não está presente."""
+    global _LOGO_B64
+    if not LOGO_PATH.exists():
+        return
+    if _LOGO_B64 is None:
+        _LOGO_B64 = base64.b64encode(LOGO_PATH.read_bytes()).decode("ascii")
+    st.markdown(
+        f'<div style="text-align:center;">'
+        f'<img src="data:image/png;base64,{_LOGO_B64}" width="{width}" style="max-width:100%;">'
+        f'</div>',
+        unsafe_allow_html=True,
+    )
 
 
 def md_html(html):
@@ -46,6 +67,8 @@ def render_login_page():
     st.set_page_config(page_title="ASPM Enterprise - Login", layout="centered")
 
     st.markdown(LOGIN_CSS, unsafe_allow_html=True)
+
+    _render_logo(width=180)
 
     st.markdown(
         """
@@ -436,6 +459,8 @@ def render_enterprise_header():
 
 
 def render_enterprise_sidebar():
+    with st.sidebar:
+        _render_logo(width=150)
     st.sidebar.markdown(
         """
         <div class="enterprise-sidebar-logo">

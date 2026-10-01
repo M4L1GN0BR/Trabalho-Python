@@ -4,10 +4,9 @@ streamlit
 requests
 python-dotenv
 pandas
-python-whois
 tldextract
 reportlab
 pip-audit
 bcrypt
-plotly>=5.20.0
+pyyaml
 altair>=5.0.0
