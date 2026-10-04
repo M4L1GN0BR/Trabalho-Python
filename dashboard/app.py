@@ -16,10 +16,18 @@ Ponto de entrada do dashboard. A lógica foi organizada em módulos:
 
 import json as _json
 import os as _os
+import sys as _sys
 import textwrap as _textwrap
 from pathlib import Path as _Path
 
 import streamlit as st
+
+# Torna a raiz do projeto importável, para que os imports "from dashboard..."
+# e "from src..." funcionem independentemente de como o script é executado
+# (python dashboard/app.py, streamlit run, etc.) e do diretório de trabalho.
+_PROJECT_ROOT = str(_Path(__file__).resolve().parent.parent)
+if _PROJECT_ROOT not in _sys.path:
+    _sys.path.insert(0, _PROJECT_ROOT)
 
 # ── Correção global de renderização HTML ──
 # O parser de Markdown do Streamlit trata linhas com 4+ espaços como bloco
@@ -96,13 +104,22 @@ init_false_positive_state()
 
 def _auto_load_demo():
     """
-    Modo demonstração (python src/main.py demo): carrega o aspm-report.json
-    gerado automaticamente, sem upload manual. Executa uma única vez por sessão.
+    Carrega o aspm-report.json de demonstração automaticamente, sem upload
+    manual, apenas quando o modo demonstração é acionado explicitamente
+    (ASPM_AUTO_DEMO=1, definido por `python src/main.py demo` e por
+    `python run_defectdojo.py`). Executa uma única vez por sessão.
+
+    Um `streamlit run` comum NÃO carrega nada: o dashboard inicia vazio e os
+    achados entram apenas por upload manual ou pelo modo demo explícito.
     """
     if _os.getenv("ASPM_AUTO_DEMO") != "1":
         return
 
     if st.session_state.get("demo_auto_loaded"):
+        return
+
+    # Se já há um relatório carregado (ex.: upload consolidado), não sobrescreve.
+    if "aspm_report" in st.session_state:
         return
 
     if not DEMO_REPORT_PATH.exists():

@@ -1495,11 +1495,6 @@ def render_offensive_tab():
         st.warning("Acesso restrito aos perfis Analista e Administrador.")
         st.stop()
 
-    st.warning(
-        "Somente para uso autorizado (laboratório, DVWA, Juice Shop, alvos próprios). "
-        "Testar terceiros sem autorização é ilegal no Brasil (Lei 12.737/2012)."
-    )
-
     autorizado = st.checkbox(
         "Confirmo que tenho autorização para testar este alvo", value=False
     )

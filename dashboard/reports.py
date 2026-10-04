@@ -5,37 +5,134 @@ Usa ReportLab. Funções puras de apresentação, sem dependência de UI.
 """
 
 from datetime import datetime
+from html import escape
 from io import BytesIO
 
 from reportlab.lib import colors
 from reportlab.lib.pagesizes import A4
-from reportlab.lib.styles import getSampleStyleSheet
-from reportlab.platypus import Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle
+from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+from reportlab.platypus import (
+    LongTable,
+    Paragraph,
+    SimpleDocTemplate,
+    Spacer,
+    TableStyle,
+)
+
+
+def _compute_col_widths(columns, df, available=527.0, min_w=26.0, max_w=190.0):
+    """Distribui a largura das colunas proporcionalmente, preservando o cabeçalho."""
+    header_ws = []
+    content_ws = []
+    for col in columns:
+        # Largura mínima para o cabeçalho caber em uma linha (negrito 7pt).
+        header_ws.append(len(str(col)) * 4.0 + 8.0)
+
+        longest = len(str(col))
+        for value in df[col]:
+            longest = max(longest, len(str(value)))
+        content_ws.append(max(min_w, min(max_w, longest * 3.4)))
+
+    widths = [max(h, c) for h, c in zip(header_ws, content_ws)]
+
+    total = sum(widths)
+    if total > available:
+        slack = total - available
+        # Reduz primeiro as colunas com folga (acima do mínimo do cabeçalho).
+        reducible = sum(w - h for w, h in zip(widths, header_ws))
+        if reducible > 0:
+            for i in range(len(widths)):
+                excess = widths[i] - header_ws[i]
+                if excess > 0:
+                    widths[i] -= slack * (excess / reducible)
+        else:
+            # Muitas colunas: até os cabeçalhos precisam encolher.
+            widths = [w * (available / total) for w in widths]
+
+    return widths
+
+
+def _truncate_cell(value, limit=400):
+    """Limita o texto de uma célula para nunca exceder a altura de uma página.
+
+    Descrições muito longas (ex.: avisos do GitHub Security Advisory com
+    milhares de caracteres) tornariam a célula mais alta que uma página e o
+    ReportLab não consegue dividir uma única célula entre páginas.
+    """
+    s = str(value)
+    if len(s) <= limit:
+        return s
+    cut = s[: limit - 1]
+    space = cut.rfind(" ")
+    if space > limit // 2:
+        cut = cut[:space]
+    return cut.rstrip() + "…"
 
 
 def generate_pdf_report(title, summary, dataframe):
     buffer = BytesIO()
-    doc = SimpleDocTemplate(buffer, pagesize=A4)
+    doc = SimpleDocTemplate(
+        buffer,
+        pagesize=A4,
+        leftMargin=28,
+        rightMargin=28,
+        topMargin=32,
+        bottomMargin=32,
+    )
 
     styles = getSampleStyleSheet()
     elements = []
 
-    elements.append(Paragraph(title, styles["Title"]))
-    elements.append(Spacer(1, 12))
-    elements.append(Paragraph(summary, styles["BodyText"]))
-    elements.append(Spacer(1, 12))
+    elements.append(Paragraph(escape(title), styles["Title"]))
+    elements.append(Spacer(1, 10))
+    elements.append(Paragraph(escape(summary), styles["BodyText"]))
+    elements.append(Spacer(1, 14))
 
     if not dataframe.empty:
-        table_data = [list(dataframe.columns)] + dataframe.astype(str).values.tolist()
-        table = Table(table_data, repeatRows=1)
+        df = dataframe.astype(str)
+        columns = list(df.columns)
 
+        header_style = ParagraphStyle(
+            "aspm_pdf_header",
+            fontName="Helvetica-Bold",
+            fontSize=7,
+            leading=9,
+            textColor=colors.white,
+        )
+        body_style = ParagraphStyle(
+            "aspm_pdf_body",
+            fontName="Helvetica",
+            fontSize=6.5,
+            leading=8.5,
+            wordWrap="CJK",
+        )
+
+        def _cell(value, style):
+            # Escapa caracteres especiais (<>&) para não quebrar o XML do
+            # ReportLab, limita o comprimento para a célula caber na página e
+            # usa wordWrap='CJK' para quebrar tokens longos (caminhos, URLs,
+            # IDs) sem cortar o conteúdo.
+            return Paragraph(escape(_truncate_cell(value)), style)
+
+        header_row = [_cell(col, header_style) for col in columns]
+        rows = [[_cell(value, body_style) for value in row] for row in df.values.tolist()]
+        table_data = [header_row] + rows
+
+        table = LongTable(
+            table_data,
+            repeatRows=1,
+            colWidths=_compute_col_widths(columns, df),
+        )
         table.setStyle(
             TableStyle(
                 [
-                    ("BACKGROUND", (0, 0), (-1, 0), colors.lightgrey),
+                    ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#1e293b")),
                     ("GRID", (0, 0), (-1, -1), 0.5, colors.grey),
-                    ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
-                    ("FONTSIZE", (0, 0), (-1, -1), 7),
+                    ("VALIGN", (0, 0), (-1, -1), "TOP"),
+                    ("LEFTPADDING", (0, 0), (-1, -1), 4),
+                    ("RIGHTPADDING", (0, 0), (-1, -1), 4),
+                    ("TOPPADDING", (0, 0), (-1, -1), 3),
+                    ("BOTTOMPADDING", (0, 0), (-1, -1), 3),
                 ]
             )
         )
@@ -44,7 +141,6 @@ def generate_pdf_report(title, summary, dataframe):
 
     doc.build(elements)
     buffer.seek(0)
-
     return buffer
 
 
