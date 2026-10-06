@@ -30,3 +30,6 @@ env/
 # Sistema
 .DS_Store
 Thumbs.db
+
+# Pacotes/deliveraveis gerados
+*.zip
