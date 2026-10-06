@@ -8,6 +8,8 @@
 
 Plataforma acadêmica para centralizar, priorizar e correlacionar achados de segurança de múltiplas ferramentas em uma visão executiva unificada.
 
+[![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg)](LICENSE.md)
+
 </div>
 
 ---
@@ -956,5 +958,22 @@ Roadmap (já listado em [MVP](#mvp)): API REST com Swagger, reativação de CI e
 ---
 
 ## Licença
+
+Este projeto é distribuído sob a **GNU General Public License v3.0** (`GPL-3.0-or-later`).
+O texto completo da licença está em [`LICENSE.md`](LICENSE.md) e cada arquivo-fonte
+contém o aviso de licenciamento no seu cabeçalho.
+
+```
+Copyright (C) 2026 Felipe Barbosa Alves (RM570378)
+                   Murilo Garcia Godoy (RM564840)
+                   Lucas Moura Gonçalves de Amorim (RM570161)
+                   Caio de Paula Goes (RM569052)
+```
+
+Este programa é software livre: você pode redistribuí-lo e/ou modificá-lo sob os
+termos da GNU GPL v3, conforme publicada pela Free Software Foundation. É
+distribuído na esperança de ser útil, mas **sem nenhuma garantia**; sem sequer a
+garantia implícita de comercialização ou adequação a um propósito específico.
+Consulte a licença para mais detalhes.
 
 Projeto acadêmico — FIAP.
