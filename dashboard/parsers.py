@@ -100,21 +100,26 @@ def classify_sca_priority(vuln_id):
 
 
 def get_semgrep_vulnerabilities(data):
-    results = data.get("results", [])
+    data = data or {}
+    results = data.get("results") or []
     vulns = []
     seen = set()
 
     for item in results:
-        severity = item.get("extra", {}).get("severity")
+        if not isinstance(item, dict):
+            continue
+        extra = item.get("extra") or {}
+        start = item.get("start") or {}
+        severity = extra.get("severity")
         check_id = item.get("check_id")
-        message = clean_text(item.get("extra", {}).get("message"))
+        message = clean_text(extra.get("message"))
         priority = classify_semgrep_priority(severity)
 
         # Deduplicação de achados idênticos (mesmo check + arquivo + linha)
         # O Semgrep pode reportar a mesma regra duas vezes no mesmo local;
         # duplicatas quebram chaves únicas do Streamlit e poluem o relatório.
         fpath = item.get("path")
-        fline = item.get("start", {}).get("line")
+        fline = start.get("line")
         dedup_key = (check_id, fpath, fline)
         if dedup_key in seen:
             continue
@@ -149,11 +154,14 @@ def get_semgrep_vulnerabilities(data):
 
 
 def get_bandit_vulnerabilities(data):
-    results = data.get("results", [])
+    data = data or {}
+    results = data.get("results") or []
     vulns = []
     seen = set()
 
     for item in results:
+        if not isinstance(item, dict):
+            continue
         test_name = item.get("test_name")
         severity = item.get("issue_severity")
         confidence = item.get("issue_confidence")
@@ -198,15 +206,20 @@ def get_bandit_vulnerabilities(data):
 
 
 def get_sca_vulnerabilities(data):
+    data = data or {}
     vulns = []
-    dependencies = data.get("dependencies", [])
+    dependencies = data.get("dependencies") or []
     seen = set()
 
     for dep in dependencies:
+        if not isinstance(dep, dict):
+            continue
         name = dep.get("name")
         version = dep.get("version")
 
-        for vuln in dep.get("vulns", []):
+        for vuln in dep.get("vulns") or []:
+            if not isinstance(vuln, dict):
+                continue
             vuln_id = vuln.get("id")
             description = clean_text(vuln.get("description"))
             fixes = vuln.get("fix_versions", [])

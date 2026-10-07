@@ -36,8 +36,8 @@ def _hash_id(*parts):
 
 def normalize_semgrep(item):
     """Normaliza um achado do Semgrep em evidência."""
-    extra = item.get("extra", {})
-    start = item.get("start", {})
+    extra = item.get("extra") or {}
+    start = item.get("start") or {}
     return {
         "id": _hash_id("semgrep", item.get("check_id"), item.get("path"), start.get("line")),
         "tool": "Semgrep",
@@ -188,27 +188,34 @@ def build_evidence_store(semgrep_data=None, bandit_data=None, sca_data=None,
     evidences = []
 
     if semgrep_data:
-        for item in semgrep_data.get("results", []):
-            evidences.append(normalize_semgrep(item))
+        for item in semgrep_data.get("results") or []:
+            if isinstance(item, dict):
+                evidences.append(normalize_semgrep(item))
 
     if bandit_data:
-        for item in bandit_data.get("results", []):
-            evidences.append(normalize_bandit(item))
+        for item in bandit_data.get("results") or []:
+            if isinstance(item, dict):
+                evidences.append(normalize_bandit(item))
 
     if sca_data:
-        for dep in sca_data.get("dependencies", []):
+        for dep in sca_data.get("dependencies") or []:
+            if not isinstance(dep, dict):
+                continue
             name = dep.get("name", "")
             version = dep.get("version", "")
-            for vuln in dep.get("vulns", []):
-                evidences.append(normalize_sca(name, version, vuln))
+            for vuln in dep.get("vulns") or []:
+                if isinstance(vuln, dict):
+                    evidences.append(normalize_sca(name, version, vuln))
 
     if secrets_data:
         for item in secrets_data:
-            evidences.append(normalize_secret(item))
+            if isinstance(item, dict):
+                evidences.append(normalize_secret(item))
 
     if url_findings:
         for item in url_findings:
-            evidences.append(normalize_url_finding(item))
+            if isinstance(item, dict):
+                evidences.append(normalize_url_finding(item))
 
     # Enriquece cada evidência com a categoria OWASP Top 10
     from .owasp import enrich_evidences
