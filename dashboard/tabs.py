@@ -894,7 +894,7 @@ def render_url_tab():
 
     if not can("url_analysis"):
         st.warning("Acesso restrito aos perfis Analista e Administrador.")
-        st.stop()
+        return
 
     url = st.text_input("Digite a URL", placeholder="https://exemplo.com")
 
@@ -926,7 +926,7 @@ def render_url_tab():
             ok, msg = check_target(url, allow_private)
             if not ok:
                 st.error(msg)
-                st.stop()
+                return
 
             with st.spinner("Analisando URL..."):
                 st.session_state.last_url_scan = analyze_url(
@@ -1513,7 +1513,7 @@ def render_offensive_tab():
 
     if not can("scan"):
         st.warning("Acesso restrito aos perfis Analista e Administrador.")
-        st.stop()
+        return
 
     autorizado = st.checkbox(
         "Confirmo que tenho autorização para testar este alvo", value=False
@@ -1559,7 +1559,7 @@ def render_offensive_tab():
         ok, msg = check_target(url, allow_private)
         if not ok:
             st.error(msg)
-            st.stop()
+            return
 
         with st.spinner("Executando testes (limitados e sem ações destrutivas)..."):
             st.session_state.attack_results = run_attack_modules(
@@ -1820,7 +1820,7 @@ def render_admin_tab():
 
     if not can("manage_users"):
         st.warning("Acesso restrito ao perfil Administrador.")
-        st.stop()
+        return
 
     # ── Criar usuário ──
     with st.expander("Criar usuário", expanded=True):
@@ -1910,7 +1910,7 @@ def render_ci_cd_tab():
 
     if not can("scan"):
         st.warning("Acesso restrito aos perfis Analista e Administrador.")
-        st.stop()
+        return
 
     st.markdown(
         """
