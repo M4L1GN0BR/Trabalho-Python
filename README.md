@@ -10,12 +10,15 @@ Plataforma acadêmica para centralizar, priorizar e correlacionar achados de seg
 
 [![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg)](LICENSE.md)
 
+**Integrantes do Grupo:** Felipe Barbosa Alves · Murilo Garcia Godoy · Lucas Moura Gonçalves de Amorim · Caio de Paula Goes
+
 </div>
 
 ---
 
 ## Sumário
 
+- [Integrantes do Grupo](#integrantes-do-grupo)
 - [Visão Geral](#visão-geral)
 - [MVP](#mvp)
 - [Principais Funcionalidades](#principais-funcionalidades)
@@ -45,6 +48,19 @@ Plataforma acadêmica para centralizar, priorizar e correlacionar achados de seg
 - [Higiene do Repositório](#higiene-do-repositório)
 - [Limitações e Roadmap](#limitações-e-roadmap)
 - [Licença](#licença)
+
+---
+
+## Integrantes do Grupo
+
+| Integrante | RM |
+|---|---|
+| Felipe Barbosa Alves | RM570378 |
+| Murilo Garcia Godoy | RM564840 |
+| Lucas Moura Gonçalves de Amorim | RM570161 |
+| Caio de Paula Goes | RM569052 |
+
+Projeto acadêmico desenvolvido para a **FIAP**.
 
 ---
 
